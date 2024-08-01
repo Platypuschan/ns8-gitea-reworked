@@ -1,19 +1,19 @@
 {
   "name": "gitea",
   "description": {
-    "en": "My gitea module"
+    "en": "Brings teams and developers high-efficiency but easy operations from planning to production."
   },
   "categories": [],
   "authors": [
     {
-      "name": "Name Surname",
-      "email": "author@yourmail.org"
+      "name": "Kemboi Elvis",
+      "email": "kemboielvis@genius.ke"
     }
   ],
   "docs": {
     "documentation_url": "https://docs.gitea.com/",
-    "bug_url": "https://github.com/NethServer/dev",
-    "code_url": "https://github.com/author/ns8-gitea"
+    "bug_url": "https://github.com/geniusdynamics/dev",
+    "code_url": "https://github.com/geniusdynamics/ns8-gitea"
   },
-  "source": "ghcr.io/nethserver/gitea"
+  "source": "ghcr.io/geniusdynamics/gitea"
 }
