@@ -25,6 +25,7 @@ ExecStart=/usr/bin/podman run --conmon-pidfile %t/gitea-app.pid \
     --volume /etc/timezone:/etc/timezone:Z \
     --volume /etc/localtime:/etc/localtime:Z \
     --env-file=%S/state/gitea-db.env \
+    --env-file=%S/state/gitea.env \
     ${GITEA_IMAGE}
 ExecStop=/usr/bin/podman stop --ignore --cidfile %t/gitea-app.ctr-id -t 10
 ExecReload=/usr/bin/podman kill -s HUP gitea-app
