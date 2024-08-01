@@ -34,4 +34,19 @@ postgres_config = {
     "POSTGRES_DB": POSTGRES_DB
 }
 agent.write_envfile("database.env", postgres_config)
+
+#  GITEA__database__DB_TYPE=postgres
+# +      - GITEA__database__HOST=db:5432
+# +      - GITEA__database__NAME=gitea
+# +      - GITEA__database__USER=gitea
+# +      - GITEA__database__PASSWD=gitea
+
+gitea_db = {
+    "GITEA__database__DB_TYPE": "postgres",
+    "GITEA__database__HOST": "postgresql-app:5432",
+    "GITEA__database__NAME": "gitea",
+    "GITEA__database__USER": POSTGRES_USER,
+    "GITEA__database__PASSWD": POSTGRES_PASSWORD
+}
+agent.write_envfile("gitea-db.env", gitea_db)
 #agent.dump_env()

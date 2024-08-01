@@ -21,11 +21,11 @@ ExecStartPre=-runagent discover-smarthost
 ExecStart=/usr/bin/podman run --conmon-pidfile %t/gitea-app.pid \
     --cidfile %t/gitea-app.ctr-id --cgroups=no-conmon \
     --pod-id-file %t/gitea.pod-id --replace -d --name  gitea-app \
-    --volume gitea-app:/var/www/html/:Z \
-    --volume ./config:/tmp:Z \
-    --env=NGINX_* \
-    --env 'CONFIG_DATABASE_URI="postgresql://postgres:Nethesis,1234@127.0.0.1:5432/gitea"' \
-    ${NGINX_IMAGE}
+    --volume gitea-app:/data/:Z \
+    --volume /etc/timezone:/etc/timezone:Z \
+    --volume /etc/localtime:/etc/localtime:Z \
+    --env-file=%S/state/gitea-db.env \
+    ${GITEA_IMAGE}
 ExecStop=/usr/bin/podman stop --ignore --cidfile %t/gitea-app.ctr-id -t 10
 ExecReload=/usr/bin/podman kill -s HUP gitea-app
 SyslogIdentifier=%u
