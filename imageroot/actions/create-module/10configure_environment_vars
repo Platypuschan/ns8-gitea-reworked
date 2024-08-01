@@ -27,7 +27,7 @@ def generate_random_password(length):
 # configure postgres db variables
 POSTGRES_USER="postgres"
 POSTGRES_PASSWORD=generate_random_password(16)
-POSTGRES_DB="kickstart"
+POSTGRES_DB="gitea"
 postgres_config = {
     "POSTGRES_USER": POSTGRES_USER,
     "POSTGRES_PASSWORD": POSTGRES_PASSWORD,
