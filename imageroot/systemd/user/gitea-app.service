@@ -22,8 +22,6 @@ ExecStart=/usr/bin/podman run --conmon-pidfile %t/gitea-app.pid \
     --cidfile %t/gitea-app.ctr-id --cgroups=no-conmon \
     --pod-id-file %t/gitea.pod-id --replace -d --name  gitea-app \
     --volume gitea-app:/data/:Z \
-    --volume /etc/timezone:/etc/timezone:Z \
-    --volume /etc/localtime:/etc/localtime:Z \
     --env-file=%S/state/gitea-db.env \
     --env-file=%S/state/gitea.env \
     ${GITEA_IMAGE}
