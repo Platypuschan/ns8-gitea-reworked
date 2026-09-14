@@ -1,143 +1,180 @@
-# ns8-gitea
+# Gitea for NethServer 8
+
+This repository packages [Gitea](https://about.gitea.com/) as a NethServer 8
+application. It is intended primarily for a private Git service on a local or
+otherwise trusted network.
+
+The module provides:
+
+- Gitea over HTTPS through the NS8 Traefik instance
+- Git over SSH on a second, dynamically allocated NS8 TCP port
+- PostgreSQL 15 with persistent application and database volumes
+- integration with the NS8 smarthost and backup framework
+- private-by-default access settings
+
+## Runtime versions
+
+Runtime images are deliberately pinned in `build-images.sh` and updated only
+through reviewed changes:
+
+- Gitea 1.27.3
+- PostgreSQL 15.19 (Alpine 3.23)
+- Node.js 24.20.0 for the reproducible UI build
+
+The module requires NS8 core 3.2.2 or newer. PostgreSQL stays on major version
+15 so an ordinary module update does not silently introduce a database
+major-version migration.
 
 ## Install
 
-Instantiate the module with:
+Install the module on an NS8 node:
 
-    add-module ghcr.io/geniusdynamics/gitea:latest 1
+```bash
+add-module ghcr.io/platypuschan/gitea:latest 1
+```
 
-The output of the command will return the instance name.
-Output example:
-
-    {"module_id": "gitea1", "image_name": "gitea", "image_url": "ghcr.io/geniusdynamics/gitea:latest"}
+The command returns the instance ID, for example `gitea1`.
 
 ## Configure
 
-Let's assume that the mattermost instance is named `gitea1`.
+Configure the public hostname through the API or the NS8 application UI:
 
-Launch `configure-module`, by setting the following parameters:
-- `host`: a fully qualified domain name for the application
-- `http2https`: enable or disable HTTP to HTTPS redirection (true/false)
-- `lets_encrypt`: enable or disable Let's Encrypt certificate (true/false)
-
-
-Example:
-
-```
-api-cli run configure-module --agent module/gitea1 --data - <<EOF
+```bash
+api-cli run module/gitea1/configure-module --data - <<'EOF'
 {
-  "host": "gitea.domain.com",
+  "host": "gitea.example.test",
   "http2https": true,
   "lets_encrypt": false
 }
 EOF
 ```
 
-The above command will:
-- start and configure the gitea instance
-- configure a virtual host for trafik to access the instance
+Use a resolvable fully qualified hostname. Enable Let's Encrypt only when the
+hostname and challenge endpoint are publicly reachable as required by your
+certificate setup.
 
-## Get the configuration
-You can retrieve the configuration with
+On first access, complete Gitea's installation form and create the
+administrator account in the **Administrator Account Settings** section.
+Self-registration is disabled after installation, so additional accounts
+should be created by an administrator.
 
+The managed defaults are suitable for a private service:
+
+- anonymous users must sign in
+- self-registration is disabled
+- newly created repositories default to private
+
+## Git over SSH
+
+NS8 reserves two TCP ports for each instance:
+
+1. the internal web backend port, bound only to loopback and routed by Traefik
+2. the Git SSH port, forwarded to port 22 of the Gitea container
+
+Retrieve the assigned SSH port with:
+
+```bash
+api-cli run module/gitea1/get-configuration
 ```
-api-cli run get-configuration --agent module/gitea1
+
+Example output:
+
+```json
+{
+  "host": "gitea.example.test",
+  "http2https": true,
+  "lets_encrypt": false,
+  "ssh_port": 20042
+}
 ```
+
+Gitea advertises clone URLs using that external port. A corresponding manual
+clone command is:
+
+```bash
+git clone ssh://git@gitea.example.test:20042/OWNER/REPOSITORY.git
+```
+
+The module adds the SSH port to the NS8 node firewall automatically. For a
+strictly local service, do not forward this port on the Internet-facing router
+and restrict access at the surrounding network firewall as appropriate.
+
+## Updates
+
+Create and verify an NS8 application backup before every Gitea upgrade. Review
+the Gitea release notes, then update the instance:
+
+```bash
+api-cli run update-module --data '{
+  "module_url": "ghcr.io/platypuschan/gitea:latest",
+  "instances": ["gitea1"],
+  "force": true
+}'
+```
+
+When updating an instance created by the original one-port module, the
+migration is automatic:
+
+- the existing web port is preserved
+- one additional NS8 TCP port is allocated for Git SSH
+- the SSH port is opened in the node firewall
+- the canonical public Gitea URL and smarthost variables are corrected
+- existing PostgreSQL data remains on major version 15
+
+Gitea applies its own schema migrations during startup. Wait for the Status
+page to report a healthy service before allowing users to push again.
+
+### Rollback
+
+Do not downgrade only the Gitea container image after it has migrated the
+database. The safe rollback path is to restore a backup taken before the
+upgrade with the compatible module image. Keep the pre-upgrade backup until
+the updated instance has been exercised and verified.
+
+## Backup consistency
+
+The NS8 backup contains a validated PostgreSQL custom-format dump, the Gitea
+configuration, and the persistent Gitea data volume. The database dump is
+written atomically, and restore aborts on archive or SQL errors.
+
+The database and file volume are separate resources, so they cannot form one
+cross-resource transactional snapshot. For the strongest consistency, run the
+backup during a short maintenance window with no repository pushes, attachment
+uploads, package writes, or administrative changes.
+
+## Smarthost
+
+Mailer settings are discovered from the centralized NS8 smarthost
+configuration. Changes to the cluster smarthost regenerate the managed Gitea
+mailer environment and restart the application container.
 
 ## Uninstall
 
-To uninstall the instance:
-
-    remove-module --no-preserve gitea1
-
-## Update
-
-To Update the instance:
-
-    api-cli run update-module --data '{"module_url":"ghcr.io/geniusdynamics/gitea:latest","instances":["gitea1"],"force":true}'
-
-## Smarthost setting discovery
-
-Some configuration settings, like the smarthost setup, are not part of the
-`configure-module` action input: they are discovered by looking at some
-Redis keys.  To ensure the module is always up-to-date with the
-centralized [smarthost
-setup](https://geniusdynamics.github.io/ns8-core/core/smarthost/) every time
-gitea starts, the command `bin/discover-smarthost` runs and refreshes
-the `state/smarthost.env` file with fresh values from Redis.
-
-Furthermore if smarthost setup is changed when gitea is already
-running, the event handler `events/smarthost-changed/10reload_services`
-restarts the main module service.
-
-See also the `systemd/user/gitea.service` file.
-
-This setting discovery is just an example to understand how the module is
-expected to work: it can be rewritten or discarded completely.
-
-## Debug
-
-some CLI are needed to debug
-
-- The module runs under an agent that initiate a lot of environment variables (in /home/gitea1/.config/state), it could be nice to verify them
-on the root terminal
-
-    `runagent -m gitea1 env`
-
-- you can become runagent for testing scripts and initiate all environment variables
-  
-    `runagent -m gitea1`
-
- the path become : 
-```
-    echo $PATH
-    /home/gitea1/.config/bin:/usr/local/agent/pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/usr/
+```bash
+remove-module --no-preserve gitea1
 ```
 
-- if you want to debug a container or see environment inside
- `runagent -m gitea1`
- ```
-podman ps
-CONTAINER ID  IMAGE                                      COMMAND               CREATED        STATUS        PORTS                    NAMES
-d292c6ff28e9  localhost/podman-pause:4.6.1-1702418000                          9 minutes ago  Up 9 minutes  127.0.0.1:20015->80/tcp  80b8de25945f-infra
-d8df02bf6f4a  docker.io/library/postgres:15.5-alpine3.19          --character-set-s...  9 minutes ago  Up 9 minutes  127.0.0.1:20015->80/tcp  postgresql-app
-9e58e5bd676f  docker.io/library/nginx:stable-alpine3.17  nginx -g daemon o...  9 minutes ago  Up 9 minutes  127.0.0.1:20015->80/tcp  gitea-app
-```
+The `--no-preserve` option permanently removes the instance data. Verify your
+backups before using it.
 
-you can see what environment variable is inside the container
-```
-podman exec  gitea-app env
-TERM=xterm
-container=podman
-NGINX_VERSION=1.24.0
-PKG_RELEASE=1
-NJS_VERSION=0.7.12
-NGINX_IMAGE=docker.io/nginx:stable-alpine3.17
-CONFIG_DATABASE_URI="postgresql://postgres:Nethesis,1234@127.0.0.1:5432/toto"
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-HOME=/root
-```
-
-you can run a shell inside the container
-
-```
-podman exec -ti   gitea-app sh
-/ # 
-```
 ## Testing
 
-Test the module using the `test-module.sh` script:
+The repository runs:
 
+- syntax validation for Python, JSON, shell scripts, and current systemd state
+  paths
+- deterministic Yarn install, UI lint, and production UI build
+- the official NS8 install and update scenarios on supported test nodes
+- HTTPS health checks and an SSH protocol-banner check on the allocated port
 
-    ./test-module.sh <NODE_ADDR> ghcr.io/geniusdynamics/gitea:latest
+To run the Robot Framework tests against a live NS8 leader, install
+`run-ns8-tests` as documented by
+[ns8-github-actions](https://github.com/NethServer/ns8-github-actions/blob/v1/README.md#running-tests-locally),
+then run:
 
-The tests are made using [Robot Framework](https://robotframework.org/)
+```bash
+run-ns8-tests NS8_LEADER ghcr.io/platypuschan/gitea:latest
+```
 
-## UI translation
-
-Translated with [Weblate](https://hosted.weblate.org/projects/ns8/).
-
-To setup the translation process:
-
-- add [GitHub Weblate app](https://docs.weblate.org/en/latest/admin/continuous.html#github-setup) to your repository
-- add your repository to [hosted.weblate.org]((https://hosted.weblate.org) or ask a NethServer developer to add it to ns8 Weblate project
+Dependency updates are proposed through the shared NS8 Renovate preset and
+require manual review; they are not auto-merged.
