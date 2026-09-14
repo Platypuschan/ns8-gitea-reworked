@@ -5,4 +5,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-rm -vf gitea.pg_dump
+set -Eeuo pipefail
+rm -f gitea.pg_dump gitea.pg_dump.tmp
