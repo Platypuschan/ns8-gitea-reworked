@@ -61,11 +61,16 @@
                 $t("settings.enabled")
               }}</template>
             </cv-toggle>
-              <!-- advanced options -->
-            <cv-accordion ref="accordion" class="maxwidth mg-bottom">
-              <cv-accordion-item :open="toggleAccordion[0]">
+            <!-- advanced options -->
+            <cv-accordion class="maxwidth mg-bottom">
+              <cv-accordion-item>
                 <template slot="title">{{ $t("settings.advanced") }}</template>
                 <template slot="content">
+                  <p class="ssh-port">
+                    <strong>{{ $t("settings.ssh_port") }}:</strong>
+                    {{ sshPort || "-" }}
+                  </p>
+                  <p>{{ $t("settings.ssh_port_help") }}</p>
                 </template>
               </cv-accordion-item>
             </cv-accordion>
@@ -123,6 +128,7 @@ export default {
       },
       urlCheckInterval: null,
       host: "",
+      sshPort: 0,
       isLetsEncryptEnabled: false,
       isHttpToHttpsEnabled: true,
       loading: {
@@ -200,6 +206,7 @@ export default {
     getConfigurationCompleted(taskContext, taskResult) {
       const config = taskResult.output;
       this.host = config.host;
+      this.sshPort = config.ssh_port;
       this.isLetsEncryptEnabled = config.lets_encrypt;
       this.isHttpToHttpsEnabled = config.http2https;
 
@@ -236,8 +243,6 @@ export default {
       }
     },
     async configureModule() {
-      this.error.test_imap = false;
-      this.error.test_smtp = false;
       const isValidationOk = this.validateConfigureModule();
       if (!isValidationOk) {
         return;
@@ -313,5 +318,9 @@ export default {
 
 .maxwidth {
   max-width: 38rem;
+}
+
+.ssh-port {
+  margin-bottom: $spacing-03;
 }
 </style>

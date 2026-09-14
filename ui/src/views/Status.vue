@@ -332,6 +332,7 @@ export default {
         getConfiguration: false,
       },
       error: {
+        getConfiguration: "",
         getStatus: "",
         listBackupRepositories: "",
         listBackups: "",
