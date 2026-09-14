@@ -376,7 +376,7 @@ export default {
       200
     );
   },
-  beforeUnmount() {
+  beforeDestroy() {
     clearTimeout(this.redirectTimeout);
   },
   created() {
