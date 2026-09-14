@@ -138,8 +138,24 @@ configuration, and the persistent Gitea data volume. The database dump is
 written atomically, and restore aborts on archive or SQL errors.
 
 The database and file volume are separate resources, so they cannot form one
-cross-resource transactional snapshot. For the strongest consistency, run the
-backup during a short maintenance window with no repository pushes, attachment
+cross-resource transactional snapshot while Gitea is writing. Gitea upstream
+therefore requires the application process to be stopped for a fully consistent
+backup. Leave PostgreSQL running so the module can create its database dump:
+
+```bash
+runagent -m gitea1 systemctl --user stop gitea-app.service
+```
+
+Start and wait for the on-demand NS8 application backup, then start Gitea again
+even if the backup failed:
+
+```bash
+runagent -m gitea1 systemctl --user start gitea-app.service
+```
+
+Do not stop `gitea.service` for this procedure because that also stops the
+PostgreSQL service required by the backup hook. If downtime is not acceptable,
+at minimum schedule backups for a period with no repository pushes, attachment
 uploads, package writes, or administrative changes.
 
 ## Smarthost

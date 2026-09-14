@@ -11,9 +11,37 @@ on:
     workflows: ["Publish images"]
     types: [completed]
 
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: write
+  statuses: write
+
 jobs:
+  preflight:
+    name: Check test infrastructure
+    runs-on: ubuntu-latest
+    outputs:
+      do_token_available: ${{ steps.token.outputs.available }}
+    steps:
+      - id: token
+        name: Check DigitalOcean token
+        env:
+          DO_TOKEN: ${{ secrets.do_token }}
+        shell: bash
+        run: |
+          if [[ -n "$DO_TOKEN" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::NS8 infrastructure tests skipped: repository secret do_token is not configured."
+          fi
+
   run:
     name: "Run tests"
+    needs: preflight
+    if: ${{ needs.preflight.outputs.do_token_available == 'true' }}
     uses: NethServer/ns8-github-actions/.github/workflows/test-module.yml@v1
     with:
       ui_tests_strategy: on_renovate_ui_change
