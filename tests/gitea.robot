@@ -51,7 +51,7 @@ Add module for ${SCENARIO} scenario
     ${output}    ${rc} =    Execute Command    add-module ${install_image} 1
     ...    return_rc=True
     Should Be Equal As Integers    ${rc}    0
-    &{output} =    Evaluate    json.loads(r'''${output}''')    modules=json
+    &{output} =    Evaluate    ast.literal_eval(r'''${output}''')    modules=ast
     Set Suite Variable    ${module_id}    ${output.module_id}
 
 Configure module
