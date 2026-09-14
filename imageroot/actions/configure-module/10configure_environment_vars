@@ -37,6 +37,10 @@ gitea.update(
         "GITEA__server__SSH_DOMAIN": host,
         # The container listens on 22; this is the externally allocated NS8 port.
         "GITEA__server__SSH_PORT": ssh_port,
+        # Private-by-default policy for the intended local repository service.
+        "GITEA__service__DISABLE_REGISTRATION": "true",
+        "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
+        "GITEA__repository__DEFAULT_PRIVATE": "private",
     }
 )
 agent.write_envfile("gitea.env", gitea)

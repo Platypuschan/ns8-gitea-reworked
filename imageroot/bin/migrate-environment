@@ -44,6 +44,15 @@ for key in list(gitea):
     if key.startswith("GITEA__mailer__"):
         del gitea[key]
 
+# Preserve a private-by-default posture across upgrades from older releases.
+gitea.update(
+    {
+        "GITEA__service__DISABLE_REGISTRATION": "true",
+        "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
+        "GITEA__repository__DEFAULT_PRIVATE": "private",
+    }
+)
+
 if host:
     gitea.update(
         {
