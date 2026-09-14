@@ -1,50 +1,43 @@
-name: Test module
+name: "Test module on QEMU"
 
 on:
   workflow_dispatch:
-    inputs:
-      debug_shell:
-        description: "Debug shell"
-        required: true
-        type: boolean
-  workflow_run:
-    workflows: ["Publish images"]
-    types: [completed]
 
 permissions:
-  actions: read
   contents: read
-  issues: write
-  pull-requests: write
-  statuses: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  preflight:
-    name: Check test infrastructure
-    runs-on: ubuntu-latest
-    outputs:
-      do_token_available: ${{ steps.token.outputs.available }}
-    steps:
-      - id: token
-        name: Check DigitalOcean token
-        env:
-          DO_TOKEN: ${{ secrets.do_token }}
-        shell: bash
-        run: |
-          if [[ -n "$DO_TOKEN" ]]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::NS8 infrastructure tests skipped: repository secret do_token is not configured."
-          fi
+  module:
+    uses: NethServer/ns8-github-actions/.github/workflows/module-info.yml@v1
 
-  run:
-    name: "Run tests"
-    needs: preflight
-    if: ${{ needs.preflight.outputs.do_token_available == 'true' }}
-    uses: NethServer/ns8-github-actions/.github/workflows/test-module.yml@v1
+  qemu:
+    name: "NS8 ${{ matrix.distro }} / ${{ matrix.scenario }}"
+    needs: module
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: rocky9
+            scenario: install
+            script: test-module-install.sh
+          - distro: rocky9
+            scenario: update
+            script: test-module-update.sh
+          - distro: debian13
+            scenario: install
+            script: test-module-install.sh
+          - distro: debian13
+            scenario: update
+            script: test-module-update.sh
+    uses: stephdl/ns8-ci-actions/.github/workflows/test-on-qemu.yml@3726dd2374c4fd2a267345d4ac975388a4bed7af
     with:
-      ui_tests_strategy: on_renovate_ui_change
-      debug_shell: ${{ github.event.inputs.debug_shell == 'true' }}
-    secrets:
-      do_token: ${{ secrets.do_token }}
+      distro: ${{ matrix.distro }}
+      image_url: ${{ needs.module.outputs.image }}
+      repo_ref: ${{ needs.module.outputs.sha }}
+      version_tag: ${{ needs.module.outputs.tag }}-${{ matrix.scenario }}
+      script: ${{ matrix.script }}
+      timeout_minutes: 60

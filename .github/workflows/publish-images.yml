@@ -10,13 +10,49 @@ permissions:
   contents: write
   security-events: write
 
+concurrency:
+  group: publish-suite-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   publish-images:
     if: github.run_number > 1
     uses: NethServer/ns8-github-actions/.github/workflows/publish-branch.yml@v1
+
   module:
     needs: publish-images
     uses: NethServer/ns8-github-actions/.github/workflows/module-info.yml@v1
+
+  qemu:
+    name: "NS8 ${{ matrix.distro }} / ${{ matrix.scenario }}"
+    needs: module
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: rocky9
+            scenario: install
+            script: test-module-install.sh
+          - distro: rocky9
+            scenario: update
+            script: test-module-update.sh
+          - distro: debian13
+            scenario: install
+            script: test-module-install.sh
+          - distro: debian13
+            scenario: update
+            script: test-module-update.sh
+    permissions:
+      contents: read
+    uses: stephdl/ns8-ci-actions/.github/workflows/test-on-qemu.yml@3726dd2374c4fd2a267345d4ac975388a4bed7af
+    with:
+      distro: ${{ matrix.distro }}
+      image_url: ${{ needs.module.outputs.image }}
+      repo_ref: ${{ needs.module.outputs.sha }}
+      version_tag: ${{ needs.module.outputs.tag }}-${{ matrix.scenario }}
+      script: ${{ matrix.script }}
+      timeout_minutes: 60
+
   trivy:
     needs: module
     if: ${{ needs.module.outputs.release == 'stable' || needs.module.outputs.release == 'latest' || github.event_name == 'workflow_dispatch' }}
