@@ -33,14 +33,17 @@ Install the module on an NS8 node:
 add-module ghcr.io/platypuschan/gitea-reworked:latest 1
 ```
 
-The command returns the instance ID, for example `gitea1`.
+The command returns the instance ID, for example `gitea-reworked1`.
+
+An instance upgraded from the original module can retain an older ID such as
+`gitea1`; always use the actual instance ID returned by NS8.
 
 ## Configure
 
 Configure the public hostname through the API or the NS8 application UI:
 
 ```bash
-api-cli run module/gitea1/configure-module --data - <<'EOF'
+api-cli run module/gitea-reworked1/configure-module --data - <<'EOF'
 {
   "host": "gitea.example.test",
   "http2https": true,
@@ -74,7 +77,7 @@ NS8 reserves two TCP ports for each instance:
 Retrieve the assigned SSH port with:
 
 ```bash
-api-cli run module/gitea1/get-configuration
+api-cli run module/gitea-reworked1/get-configuration
 ```
 
 Example output:
@@ -107,7 +110,7 @@ the Gitea release notes, then update the instance:
 ```bash
 api-cli run update-module --data '{
   "module_url": "ghcr.io/platypuschan/gitea-reworked:latest",
-  "instances": ["gitea1"],
+  "instances": ["gitea-reworked1"],
   "force": true
 }'
 ```
@@ -143,14 +146,14 @@ therefore requires the application process to be stopped for a fully consistent
 backup. Leave PostgreSQL running so the module can create its database dump:
 
 ```bash
-runagent -m gitea1 systemctl --user stop gitea-app.service
+runagent -m gitea-reworked1 systemctl --user stop gitea-app.service
 ```
 
 Start and wait for the on-demand NS8 application backup, then start Gitea again
 even if the backup failed:
 
 ```bash
-runagent -m gitea1 systemctl --user start gitea-app.service
+runagent -m gitea-reworked1 systemctl --user start gitea-app.service
 ```
 
 Do not stop `gitea.service` for this procedure because that also stops the
@@ -167,7 +170,7 @@ mailer environment and restart the application container.
 ## Uninstall
 
 ```bash
-remove-module --no-preserve gitea1
+remove-module --no-preserve gitea-reworked1
 ```
 
 The `--no-preserve` option permanently removes the instance data. Verify your

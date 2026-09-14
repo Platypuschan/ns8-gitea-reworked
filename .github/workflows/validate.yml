@@ -75,6 +75,9 @@ jobs:
             exit 1
           fi
 
+      - name: Test port allocation and migration
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
   ui:
     name: UI lint and build
     runs-on: ubuntu-latest
