@@ -3,6 +3,7 @@ import io
 import os
 import runpy
 import stat
+import subprocess
 import sys
 import tempfile
 import types
@@ -14,6 +15,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 CREATE_SCRIPT = ROOT / "imageroot/actions/create-module/10configure_environment_vars"
 MIGRATION_SCRIPT = ROOT / "imageroot/bin/migrate-environment"
+RESTORE_SCRIPT = ROOT / "imageroot/actions/restore-module/40restore_database"
 BUILD_SCRIPT = ROOT / "build-images.sh"
 
 
@@ -177,6 +179,48 @@ class PortAllocationTests(unittest.TestCase):
         build_script = BUILD_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("node:fwadm,portsadm", build_script)
         self.assertNotIn("node:fwadm node:portsadm", build_script)
+
+
+class BackupRestoreTests(unittest.TestCase):
+    def test_postgres_user_can_read_restore_init_script(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            mock_bin = state / "bin"
+            mock_bin.mkdir()
+            (state / "gitea.pg_dump").write_bytes(b"valid custom archive")
+
+            podman = mock_bin / "podman"
+            podman.write_text(
+                """#!/bin/bash
+set -Eeuo pipefail
+if [[ "$*" == *"pg_restore --list"* ]]; then
+    exit 0
+fi
+test "$(stat -c '%a' restore)" = "755"
+test "$(stat -c '%a' restore/gitea_restore.sh)" = "644"
+grep -q "pg_restore" restore/gitea_restore.sh
+cat >/dev/null
+""",
+                encoding="utf-8",
+            )
+            podman.chmod(0o755)
+
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{mock_bin}:{environment['PATH']}",
+                    "POSTGRES_IMAGE": "postgres:test",
+                }
+            )
+            subprocess.run(
+                ["bash", str(RESTORE_SCRIPT)],
+                cwd=state,
+                env=environment,
+                check=True,
+            )
+
+            self.assertFalse((state / "gitea.pg_dump").exists())
+            self.assertFalse((state / "restore").exists())
 
 
 if __name__ == "__main__":
