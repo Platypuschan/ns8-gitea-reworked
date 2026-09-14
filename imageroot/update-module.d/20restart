@@ -5,11 +5,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-# If the control reaches this step, the service can be enabled and started
-
-set -e
-
-# Redirect any output to the journal (stderr)
+set -Eeuo pipefail
 exec 1>&2
 
+systemctl --user daemon-reload
 systemctl --user try-restart gitea.service
