@@ -3,7 +3,7 @@ Library    SSHLibrary
 Library    String
 
 *** Variables ***
-${IMAGE_URL}         ghcr.io/platypuschan/gitea:latest
+${IMAGE_URL}         ghcr.io/platypuschan/gitea-reworked:latest
 ${BASELINE_IMAGE}    ghcr.io/geniusdynamics/gitea:latest
 ${SCENARIO}          install
 ${HOST}              gitea.test

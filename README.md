@@ -30,7 +30,7 @@ major-version migration.
 Install the module on an NS8 node:
 
 ```bash
-add-module ghcr.io/platypuschan/gitea:latest 1
+add-module ghcr.io/platypuschan/gitea-reworked:latest 1
 ```
 
 The command returns the instance ID, for example `gitea1`.
@@ -106,7 +106,7 @@ the Gitea release notes, then update the instance:
 
 ```bash
 api-cli run update-module --data '{
-  "module_url": "ghcr.io/platypuschan/gitea:latest",
+  "module_url": "ghcr.io/platypuschan/gitea-reworked:latest",
   "instances": ["gitea1"],
   "force": true
 }'
@@ -189,7 +189,7 @@ To run the Robot Framework tests against a live NS8 leader, install
 then run:
 
 ```bash
-run-ns8-tests NS8_LEADER ghcr.io/platypuschan/gitea:latest
+run-ns8-tests NS8_LEADER ghcr.io/platypuschan/gitea-reworked:latest
 ```
 
 Dependency updates are proposed through the shared NS8 Renovate preset and

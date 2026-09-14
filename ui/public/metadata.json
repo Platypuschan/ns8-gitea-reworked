@@ -16,5 +16,5 @@
     "bug_url": "https://github.com/Platypuschan/ns8-gitea-reworked/issues",
     "code_url": "https://github.com/Platypuschan/ns8-gitea-reworked"
   },
-  "source": "ghcr.io/platypuschan/gitea"
+  "source": "ghcr.io/platypuschan/gitea-reworked"
 }

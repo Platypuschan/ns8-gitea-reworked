@@ -9,7 +9,7 @@ set -Eeuo pipefail
 
 images=()
 repobase="${REPOBASE:-ghcr.io/platypuschan}"
-reponame="gitea"
+reponame="gitea-reworked"
 
 # Keep runtime images pinned: upgrades are reviewed and tested through Renovate PRs.
 postgres_image="docker.io/library/postgres:15.19-alpine3.23"
