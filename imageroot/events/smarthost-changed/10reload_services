@@ -5,6 +5,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-set -e
-
-systemctl --user try-reload-or-restart gitea.service
+set -Eeuo pipefail
+systemctl --user try-restart gitea-app.service

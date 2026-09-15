@@ -5,7 +5,26 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-set -e
+set -Eeuo pipefail
+umask 077
 
-echo "Dumping gitea postgres database"
-podman exec postgresql-app pg_dump -U postgres --format=c  gitea > gitea.pg_dump
+dump_file="gitea.pg_dump"
+temporary_dump="${dump_file}.tmp"
+
+cleanup() {
+    rm -f "${temporary_dump}"
+}
+trap cleanup EXIT
+
+echo "Creating a transaction-consistent PostgreSQL dump for Gitea" >&2
+podman exec postgresql-app sh -ceu \
+    'exec pg_dump --format=custom --no-owner --no-privileges --lock-wait-timeout=30s --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' \
+    >"${temporary_dump}"
+
+if [[ ! -s "${temporary_dump}" ]]; then
+    echo "The PostgreSQL dump is empty; refusing to publish an invalid backup state." >&2
+    exit 1
+fi
+
+mv -f "${temporary_dump}" "${dump_file}"
+trap - EXIT

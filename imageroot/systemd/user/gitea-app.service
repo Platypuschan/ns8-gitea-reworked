@@ -4,31 +4,31 @@
 #
 
 [Unit]
-Description=Podman  gitea-app.service
+Description=Gitea application container
 BindsTo=gitea.service
 After=gitea.service postgresql-app.service
 
 [Service]
 Environment=PODMAN_SYSTEMD_UNIT=%n
-EnvironmentFile=%S/state/environment
-EnvironmentFile=-%S/state/smarthost.env
-WorkingDirectory=%S/state
+EnvironmentFile=%E/state/environment
+WorkingDirectory=%E/state
 Restart=always
 TimeoutStopSec=70
-ExecStartPre=/bin/mkdir -p config
 ExecStartPre=/bin/rm -f %t/gitea-app.pid %t/gitea-app.ctr-id
+ExecStartPre=/usr/bin/touch smarthost.env
 ExecStartPre=-runagent discover-smarthost
 ExecStart=/usr/bin/podman run --conmon-pidfile %t/gitea-app.pid \
     --cidfile %t/gitea-app.ctr-id --cgroups=no-conmon \
-    --pod-id-file %t/gitea.pod-id --replace -d --name  gitea-app \
+    --pod-id-file %t/gitea.pod-id --replace -d --name gitea-app \
     --volume gitea-app:/data/:Z \
-    --env-file=%S/state/gitea-db.env \
-    --env-file=%S/state/gitea.env \
+    --env-file=%E/state/gitea-db.env \
+    --env-file=%E/state/gitea.env \
+    --env-file=%E/state/smarthost.env \
     ${GITEA_IMAGE}
 ExecStop=/usr/bin/podman stop --ignore --cidfile %t/gitea-app.ctr-id -t 10
 ExecReload=/usr/bin/podman kill -s HUP gitea-app
-SyslogIdentifier=%u
 ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/gitea-app.ctr-id
+SyslogIdentifier=%u
 PIDFile=%t/gitea-app.pid
 Type=forking
 

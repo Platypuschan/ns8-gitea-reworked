@@ -1,11 +1,18 @@
 #!/bin/bash
 
-if [[ -z "$1" ]]; then
-    echo "Missing parameter: append 'watch' or 'build'"
-elif [[ "$1" = "watch" ]]; then
-    yarn install && yarn watch
-elif [[ "$1" == "build" ]]; then
-    yarn install && yarn build
-else
-    echo "Parameter not recognized: '$1'. Only 'watch' or 'build' are allowed"
-fi
+set -Eeuo pipefail
+
+case "${1:-}" in
+    watch|build)
+        yarn install --immutable
+        exec yarn "$1"
+        ;;
+    "")
+        echo "Missing parameter: append 'watch' or 'build'." >&2
+        exit 64
+        ;;
+    *)
+        echo "Unsupported parameter '$1'; expected 'watch' or 'build'." >&2
+        exit 64
+        ;;
+esac

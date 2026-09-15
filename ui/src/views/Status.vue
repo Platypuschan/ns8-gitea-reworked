@@ -332,6 +332,7 @@ export default {
         getConfiguration: false,
       },
       error: {
+        getConfiguration: "",
         getStatus: "",
         listBackupRepositories: "",
         listBackups: "",
@@ -375,7 +376,7 @@ export default {
       200
     );
   },
-  beforeUnmount() {
+  beforeDestroy() {
     clearTimeout(this.redirectTimeout);
   },
   created() {

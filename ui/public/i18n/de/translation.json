@@ -1,57 +1,75 @@
 {
-    "error": {
-        "403": "Operation nicht zugelassen",
-        "cannot_retrieve_installed_modules": "installierte Module nicht abrufbar",
-        "401": "fehlerhafte Anmeldung",
-        "cannot_retrieve_module_info": "Modulinfo nicht abrufbar",
-        "generic_error": "Etwas ist schief gegangen",
-        "error": "Fehler",
-        "network_timeout": "Netzwerk Timeout",
-        "404": "Ressource nicht gefunden",
-        "network_error": "Netzwerkfehler",
-        "validation_error": "Fehlerhafte Prüfung"
-    },
-    "settings": {
-        "test_field": "Testfeld",
-        "configure_instance": "{instance} konfigurieren",
-        "save": "Speichern",
-        "title": "Einstellungen"
-    },
-    "common": {
-        "required": "erforderlich",
-        "work_in_progress": "In Arbeit",
-        "processing": "Ausführung..."
-    },
-    "status": {
-        "created": "erstellt",
-        "size": "Größe",
-        "name": "Name",
-        "no_images": "Keine Abbilder",
-        "app_volumes": "App Volumen | App Volumen",
-        "services": "Dienst | Dienste",
-        "app_images": "App-Abbild | App-Abbilder",
-        "no_services": "Keine Dienste",
-        "app_instance": "App-Instanz",
-        "mount": "Einbindepunkt",
-        "title": "Status",
-        "installation_node": "Knoten der Installation",
-        "node": "Knoten",
-        "no_volumes": "keine Volumen"
-    },
-    "about": {
-        "title": "Über"
-    },
-    "action": {
-        "list-backup-repositories": "Liste der Datensicherungs-Speicherort",
-        "get-module-info": "Informationen zum Modul abrufen",
-        "list-installed-modules": "installierte Module auflisten",
-        "list-backups": "Datensicherungen auflisten",
-        "get-status": "Status abfragen",
-        "configure-module": "Modul konfigurieren",
-        "get-configuration": "Konfiguration abrufen",
-        "get-name": "Name abrufen"
-    },
-    "task": {
-        "cannot_create_task": "{task} kann nicht erstellt werden"
-    }
+  "error": {
+    "401": "fehlerhafte Anmeldung",
+    "403": "Operation nicht zugelassen",
+    "404": "Ressource nicht gefunden",
+    "cannot_retrieve_installed_modules": "installierte Module nicht abrufbar",
+    "cannot_retrieve_module_info": "Modulinfo nicht abrufbar",
+    "generic_error": "Etwas ist schief gegangen",
+    "error": "Fehler",
+    "network_timeout": "Netzwerk Timeout",
+    "network_error": "Netzwerkfehler",
+    "validation_error": "Fehlerhafte Prüfung",
+    "cannot_retrieve_configuration": "Konfiguration kann nicht abgerufen werden"
+  },
+  "settings": {
+    "test_field": "Testfeld",
+    "configure_instance": "{instance} konfigurieren",
+    "save": "Speichern",
+    "title": "Einstellungen",
+    "gitea_fqdn": "Gitea-Hostname (FQDN)",
+    "lets_encrypt": "Let's-Encrypt-Zertifikat anfordern",
+    "http_to_https": "HTTPS erzwingen",
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "advanced": "Erweitert",
+    "configuring": "Konfiguration wird angewendet",
+    "instance_configuration": "Gitea konfigurieren",
+    "domain_already_used_in_traefik": "Die Domain wird bereits von Traefik verwendet",
+    "host_pattern": "Es muss ein gültiger vollständig qualifizierter Domainname sein",
+    "host_format": "Es muss ein gültiger vollständig qualifizierter Domainname sein",
+    "ssh_port": "Git-SSH-TCP-Port",
+    "ssh_port_help": "NS8 weist diesen externen Port automatisch zu. Verwende die von Gitea angezeigte SSH-Clone-Adresse; der Container selbst hört weiterhin auf Port 22."
+  },
+  "common": {
+    "required": "erforderlich",
+    "work_in_progress": "In Arbeit",
+    "processing": "Ausführung..."
+  },
+  "status": {
+    "created": "erstellt",
+    "size": "Größe",
+    "name": "Name",
+    "no_images": "Keine Abbilder",
+    "app_volumes": "App Volumen | App Volumen",
+    "services": "Dienst | Dienste",
+    "app_images": "App-Abbild | App-Abbilder",
+    "no_services": "Keine Dienste",
+    "app_instance": "App-Instanz",
+    "mount": "Einbindepunkt",
+    "title": "Status",
+    "installation_node": "Knoten der Installation",
+    "node": "Knoten",
+    "no_volumes": "keine Volumen",
+    "gitea_webapp": "Gitea-Webanwendung",
+    "not_configured": "Nicht konfiguriert",
+    "open_webapp": "Gitea öffnen",
+    "configure": "Konfigurieren"
+  },
+  "about": {
+    "title": "Über"
+  },
+  "action": {
+    "list-backup-repositories": "Liste der Datensicherungs-Speicherort",
+    "get-module-info": "Informationen zum Modul abrufen",
+    "list-installed-modules": "installierte Module auflisten",
+    "list-backups": "Datensicherungen auflisten",
+    "get-status": "Status abfragen",
+    "configure-module": "Modul konfigurieren",
+    "get-configuration": "Konfiguration abrufen",
+    "get-name": "Name abrufen"
+  },
+  "task": {
+    "cannot_create_task": "{task} kann nicht erstellt werden"
+  }
 }
