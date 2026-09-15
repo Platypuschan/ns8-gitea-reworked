@@ -6,41 +6,42 @@
 #
 
 import json
+import os
 import sys
+
 import agent
 
-# Try to parse the stdin as JSON.
-# If parsing fails, output everything to stderr
+
 data = json.load(sys.stdin)
-#  - GITEA__mailer__ENABLED=true
-#       - GITEA__mailer__FROM=${GITEA__mailer__FROM:?GITEA__mailer__FROM not set}
-#       - GITEA__mailer__PROTOCOL=smtps
-#       - GITEA__mailer__SMTP_ADDR=${GITEA__mailer__SMTP_ADDR:?GITEA__mailer__SMTP_ADDR not set}
-#       - GITEA__mailer__SMTP_PORT=${GITEA__mailer__SMTP_PORT:?GITEA__mailer__SMTP_PORT not set}
-#       - GITEA__mailer__USER=${GITEA__mailer__USER:-apikey}
-#       - GITEA__mailer__PASSWD="""${GITEA__mailer__PASSWD:?GITEA__mailer__PASSWD not set}"""
-#This is specific to you module, so you need to change it accordingly.
-HOST = data.get('host')
+host = data["host"].strip().rstrip(".")
+ssh_port = os.environ["SSH_TCP_PORT"]
 
-# Emails
-rdb = agent.redis_connect(use_replica=True)
-smtp_settings = agent.get_smarthost_settings(rdb)
-SMTP_HOST = smtp_settings['host']
-SMTP_PORT = smtp_settings['port']
-SMTP_USERNAME = smtp_settings['username']
-SMTP_PASSWORD = smtp_settings['password']
-SMTP_ENCRYPTION = smtp_settings['encrypt_smtp']
-SMTP_ENABLED='true' if smtp_settings['enabled'] else 'false'
+try:
+    gitea = agent.read_envfile("gitea.env")
+except FileNotFoundError:
+    gitea = {}
 
-gitea = {
-    "LOCAL_ROOT_URL": f'https://{HOST}',
-    "GITEA__mailer__ENABLED": SMTP_ENABLED,
-    "GITEA__mailer__FROM": SMTP_USERNAME,
-    "GITEA__mailer__PROTOCOL": "smtps",
-    "GITEA__mailer__SMTP_ADDR": SMTP_HOST,
-    "GITEA__mailer__SMTP_PORT": SMTP_PORT,
-    "GITEA__mailer__USER": SMTP_USERNAME,
-    "GITEA__mailer__PASSWD": SMTP_PASSWORD,
-}
+# These values were managed by older module versions. Smarthost settings are
+# now regenerated independently in smarthost.env.
+gitea.pop("LOCAL_ROOT_URL", None)
+for key in list(gitea):
+    if key.startswith("GITEA__mailer__"):
+        del gitea[key]
+
+gitea.update(
+    {
+        "GITEA__server__DOMAIN": host,
+        "GITEA__server__ROOT_URL": f"https://{host}/",
+        "GITEA__server__PUBLIC_URL_DETECTION": "never",
+        "GITEA__server__DISABLE_SSH": "false",
+        "GITEA__server__SSH_DOMAIN": host,
+        # The container listens on 22; this is the externally allocated NS8 port.
+        "GITEA__server__SSH_PORT": ssh_port,
+        # Private-by-default policy for the intended local repository service.
+        "GITEA__service__DISABLE_REGISTRATION": "true",
+        "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
+        "GITEA__repository__DEFAULT_PRIVATE": "private",
+    }
+)
 agent.write_envfile("gitea.env", gitea)
-#agent.dump_env()
+os.chmod("gitea.env", 0o600)

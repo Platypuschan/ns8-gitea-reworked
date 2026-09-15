@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+"""Idempotently migrate state written by older ns8-gitea releases."""
+
+import os
+
+import agent
+
+
+def read_env(path):
+    try:
+        return agent.read_envfile(path)
+    except FileNotFoundError:
+        return {}
+
+
+host = os.environ.get("TRAEFIK_HOST", "").strip().rstrip(".")
+ssh_port = os.environ.get("SSH_TCP_PORT", "").strip()
+
+# Releases with one web port need one additional allocation for Git SSH.
+if not ssh_port:
+    allocation = agent.allocate_ports(1, "tcp", keep_existing=True)
+    agent.assert_exp(allocation and len(allocation) == 2, "SSH port allocation failed.")
+    ssh_port = str(allocation[0])
+    agent.set_env("SSH_TCP_PORT", ssh_port)
+
+agent.assert_exp(
+    agent.add_public_service(
+        os.environ["MODULE_ID"],
+        [f"{ssh_port}/tcp"],
+        replace_ports=True,
+    ),
+    "Could not expose the Gitea SSH port in the node firewall.",
+)
+
+gitea = read_env("gitea.env")
+gitea.pop("LOCAL_ROOT_URL", None)
+for key in list(gitea):
+    if key.startswith("GITEA__mailer__"):
+        del gitea[key]
+
+# Preserve a private-by-default posture across upgrades from older releases.
+gitea.update(
+    {
+        "GITEA__service__DISABLE_REGISTRATION": "true",
+        "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
+        "GITEA__repository__DEFAULT_PRIVATE": "private",
+    }
+)
+
+if host:
+    gitea.update(
+        {
+            "GITEA__server__DOMAIN": host,
+            "GITEA__server__ROOT_URL": f"https://{host}/",
+            "GITEA__server__PUBLIC_URL_DETECTION": "never",
+            "GITEA__server__DISABLE_SSH": "false",
+            "GITEA__server__SSH_DOMAIN": host,
+            "GITEA__server__SSH_PORT": ssh_port,
+        }
+    )
+
+if gitea or os.path.exists("gitea.env"):
+    agent.write_envfile("gitea.env", gitea)
+    os.chmod("gitea.env", 0o600)
+
+database = read_env("gitea-db.env")
+if database.get("GITEA__database__HOST", "") in ("", "postgresql-app:5432"):
+    database["GITEA__database__HOST"] = "127.0.0.1:5432"
+
+if database or os.path.exists("gitea-db.env"):
+    agent.write_envfile("gitea-db.env", database)
+    os.chmod("gitea-db.env", 0o600)
+
+# Keep an empty fallback if discovery cannot reach Redis during startup.
+with open("smarthost.env", "a", encoding="utf-8"):
+    pass
+os.chmod("smarthost.env", 0o600)

@@ -5,22 +5,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-#
-# Read configuration
-#
-
+import json
 import os
 import sys
-import json
-import agent
 
-# Prepare return variable
-config = {}
 
-# Read current configuration from the environment file
-config["host"] = os.getenv("TRAEFIK_HOST","")
-config["http2https"] = os.getenv("TRAEFIK_HTTP2HTTPS") == "True"
-config["lets_encrypt"] = os.getenv("TRAEFIK_LETS_ENCRYPT") == "True"
+ssh_port = os.environ.get("SSH_TCP_PORT", "")
+configuration = {
+    "host": os.environ.get("TRAEFIK_HOST", ""),
+    "http2https": os.environ.get("TRAEFIK_HTTP2HTTPS") == "True",
+    "lets_encrypt": os.environ.get("TRAEFIK_LETS_ENCRYPT") == "True",
+    "ssh_port": int(ssh_port) if ssh_port.isdigit() else 0,
+}
 
-# Dump the configuration to stdout
-json.dump(config, fp=sys.stdout)
+json.dump(configuration, fp=sys.stdout)

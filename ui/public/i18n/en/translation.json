@@ -38,7 +38,9 @@
     "instance_configuration": "Configure gitea",
     "domain_already_used_in_traefik": "Domain already used in traefik",
     "host_pattern": "Must be a valid fully qualified domain name",
-    "host_format": "Must be a valid fully qualified domain name"
+    "host_format": "Must be a valid fully qualified domain name",
+    "ssh_port": "Git SSH TCP port",
+    "ssh_port_help": "NS8 allocates this external port automatically. Use the SSH clone URL shown by Gitea; the container itself continues to listen on port 22."
   },
   "about": {
     "title": "About"
@@ -57,14 +59,14 @@
     "list-installed-modules": "List installed modules"
   },
   "error": {
+    "401": "Invalid authentication",
+    "403": "Operation not authorized",
+    "404": "Resource not found",
     "error": "Error",
     "generic_error": "Something went wrong",
     "validation_error": "Validation error",
     "network_error": "Network error",
     "network_timeout": "Network timeout",
-    "401": "Invalid authentication",
-    "403": "Operation not authorized",
-    "404": "Resource not found",
     "cannot_retrieve_module_info": "Cannot retrieve module info",
     "cannot_retrieve_installed_modules": "Cannot retrieve installed modules",
     "cannot_retrieve_configuration": "Cannot retrieve configuration"

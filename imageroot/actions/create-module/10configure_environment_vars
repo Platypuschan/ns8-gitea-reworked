@@ -6,47 +6,46 @@
 #
 
 import json
-import sys
-import agent
 import os
+import secrets
+import sys
 
-# Try to parse the stdin as JSON.
-# If parsing fails, output everything to stderr
-data = json.load(sys.stdin)
+import agent
 
-# Generate Password
 
-def generate_random_password(length):
-    # Generate random bytes and convert them to a hexadecimal string
-    random_bytes = os.urandom(length)
-    password = random_bytes.hex()
-    return password[:length]
+# Consume and validate the action input, even though no fields are currently used.
+json.load(sys.stdin)
 
-#This is specific to you module, so you need to change it accordingly.
+ports = [port.strip() for port in os.environ.get("TCP_PORTS", "").split(",") if port]
+agent.assert_exp(
+    len(ports) == 2,
+    "The module requires exactly two allocated TCP ports (web and Git SSH).",
+)
+agent.set_env("SSH_TCP_PORT", ports[1])
 
-# configure postgres db variables
-POSTGRES_USER="postgres"
-POSTGRES_PASSWORD=generate_random_password(16)
-POSTGRES_DB="gitea"
-postgres_config = {
-    "POSTGRES_USER": POSTGRES_USER,
-    "POSTGRES_PASSWORD": POSTGRES_PASSWORD,
-    "POSTGRES_DB": POSTGRES_DB
-}
-agent.write_envfile("database.env", postgres_config)
+postgres_user = "postgres"
+postgres_password = secrets.token_hex(32)
+postgres_db = "gitea"
 
-#  GITEA__database__DB_TYPE=postgres
-# +      - GITEA__database__HOST=db:5432
-# +      - GITEA__database__NAME=gitea
-# +      - GITEA__database__USER=gitea
-# +      - GITEA__database__PASSWD=gitea
+agent.write_envfile(
+    "database.env",
+    {
+        "POSTGRES_USER": postgres_user,
+        "POSTGRES_PASSWORD": postgres_password,
+        "POSTGRES_DB": postgres_db,
+    },
+)
+os.chmod("database.env", 0o600)
 
-gitea_db = {
-    "GITEA__database__DB_TYPE": "postgres",
-    "GITEA__database__HOST": "postgresql-app:5432",
-    "GITEA__database__NAME": "gitea",
-    "GITEA__database__USER": POSTGRES_USER,
-    "GITEA__database__PASSWD": POSTGRES_PASSWORD
-}
-agent.write_envfile("gitea-db.env", gitea_db)
-#agent.dump_env()
+# Both containers share one Podman pod, therefore PostgreSQL is reachable on loopback.
+agent.write_envfile(
+    "gitea-db.env",
+    {
+        "GITEA__database__DB_TYPE": "postgres",
+        "GITEA__database__HOST": "127.0.0.1:5432",
+        "GITEA__database__NAME": postgres_db,
+        "GITEA__database__USER": postgres_user,
+        "GITEA__database__PASSWD": postgres_password,
+    },
+)
+os.chmod("gitea-db.env", 0o600)
