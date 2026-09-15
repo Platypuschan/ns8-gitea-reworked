@@ -1,36 +1,45 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Get gitea settings",
-    "$id": "http://nethserver.org/json-schema/task/input/gitea/get-configuration",
-    "description": "Get gitea settings",
-    "examples": [
-        {
-            "host": "gitea.domain.org",
-            "http2https": true,
-            "lets_encrypt": true
-        }
-    ],
-    "type": "object",
-    "required": [
-        "host",
-        "http2https",
-        "lets_encrypt"
-    ],
-    "properties": {
-        "host": {
-            "type": "string",
-            "description": "Host name for the application, like 'gitea.domain.org'",
-            "format": "idn-hostname"
-        },
-        "lets_encrypt": {
-            "type": "boolean",
-            "title": "Let's Encrypt certificate",
-            "description": "Request a valid Let's Encrypt certificate."
-        },
-        "http2https": {
-            "type": "boolean",
-            "title": "HTTP to HTTPS redirection",
-            "description": "Redirect all the HTTP requests to HTTPS"
-        }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Get gitea settings",
+  "$id": "http://nethserver.org/json-schema/task/input/gitea/get-configuration",
+  "description": "Get gitea settings",
+  "examples": [
+    {
+      "host": "gitea.domain.org",
+      "http2https": true,
+      "lets_encrypt": true,
+      "ssh_port": 20001
     }
+  ],
+  "type": "object",
+  "required": [
+    "host",
+    "http2https",
+    "lets_encrypt",
+    "ssh_port"
+  ],
+  "properties": {
+    "host": {
+      "type": "string",
+      "description": "Host name for the application, like 'gitea.domain.org'",
+      "format": "idn-hostname"
+    },
+    "lets_encrypt": {
+      "type": "boolean",
+      "title": "Let's Encrypt certificate",
+      "description": "Request a valid Let's Encrypt certificate."
+    },
+    "http2https": {
+      "type": "boolean",
+      "title": "HTTP to HTTPS redirection",
+      "description": "Redirect all the HTTP requests to HTTPS"
+    },
+    "ssh_port": {
+      "type": "integer",
+      "title": "Git SSH TCP port",
+      "description": "Externally allocated NS8 TCP port forwarded to Gitea SSH.",
+      "minimum": 0,
+      "maximum": 65535
+    }
+  }
 }

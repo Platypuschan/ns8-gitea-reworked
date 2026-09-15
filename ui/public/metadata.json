@@ -1,7 +1,8 @@
 {
   "name": "gitea",
   "description": {
-    "en": "Brings teams and developers high-efficiency but easy operations from planning to production."
+    "en": "Private, self-hosted Git service for NethServer 8.",
+    "de": "Privater, selbst gehosteter Git-Dienst für NethServer 8."
   },
   "categories": [],
   "authors": [
@@ -12,8 +13,8 @@
   ],
   "docs": {
     "documentation_url": "https://docs.gitea.com/",
-    "bug_url": "https://github.com/geniusdynamics/dev",
-    "code_url": "https://github.com/geniusdynamics/ns8-gitea"
+    "bug_url": "https://github.com/Platypuschan/ns8-gitea-reworked/issues",
+    "code_url": "https://github.com/Platypuschan/ns8-gitea-reworked"
   },
-  "source": "ghcr.io/geniusdynamics/gitea"
+  "source": "ghcr.io/platypuschan/gitea-reworked"
 }
