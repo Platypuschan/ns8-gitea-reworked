@@ -13,6 +13,7 @@ Environment=PODMAN_SYSTEMD_UNIT=%n
 EnvironmentFile=%E/state/environment
 WorkingDirectory=%E/state
 Restart=always
+TimeoutStartSec=180
 TimeoutStopSec=70
 ExecStartPre=/bin/rm -f %t/gitea-app.pid %t/gitea-app.ctr-id
 ExecStartPre=/usr/bin/touch smarthost.env
@@ -25,6 +26,7 @@ ExecStart=/usr/bin/podman run --conmon-pidfile %t/gitea-app.pid \
     --env-file=%E/state/gitea.env \
     --env-file=%E/state/smarthost.env \
     ${GITEA_IMAGE}
+ExecStartPost=-runagent reconcile-gitea-auth
 ExecStop=/usr/bin/podman stop --ignore --cidfile %t/gitea-app.ctr-id -t 10
 ExecReload=/usr/bin/podman kill -s HUP gitea-app
 ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/gitea-app.ctr-id

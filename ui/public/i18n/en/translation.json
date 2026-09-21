@@ -40,7 +40,22 @@
     "host_pattern": "Must be a valid fully qualified domain name",
     "host_format": "Must be a valid fully qualified domain name",
     "ssh_port": "Git SSH TCP port",
-    "ssh_port_help": "NS8 allocates this external port automatically. Use the SSH clone URL shown by Gitea; the container itself continues to listen on port 22."
+    "ssh_port_help": "NS8 allocates this external port automatically. Use the SSH clone URL shown by Gitea; the container itself continues to listen on port 22.",
+    "ad_title": "Active Directory login",
+    "ad_description": "Gitea automatically configures login through an Active Directory domain registered in NS8.",
+    "ad_enabled": "Use Active Directory login",
+    "ad_domain": "NS8 Active Directory domain",
+    "ad_domain_placeholder": "Select an Active Directory domain",
+    "ad_user_group": "Allowed AD group",
+    "ad_user_group_help": "Only members of this group can sign in. Default: gitea-user.",
+    "ad_admin_group": "Gitea administrators AD group",
+    "ad_admin_group_help": "Members become administrators but must also belong to the allowed group. Default: gitea-admin.",
+    "ad_user_search_base": "User search base (optional)",
+    "ad_user_search_base_placeholder": "CN=Users,DC=ad,DC=example,DC=org",
+    "ad_user_search_base_help": "Leave blank to use CN=Users followed by the selected domain's base DN.",
+    "ad_nested_groups": "Accept nested AD groups",
+    "ad_nested_groups_help": "Enable when indirect membership in gitea-user or gitea-admin should apply.",
+    "ad_groups_must_differ": "The allowed and administrator groups must be different"
   },
   "about": {
     "title": "About"
@@ -56,7 +71,8 @@
     "get-name": "Get name",
     "list-backup-repositories": "List backup repositories",
     "list-backups": "List backups",
-    "list-installed-modules": "List installed modules"
+    "list-installed-modules": "List installed modules",
+    "list-user-domains": "List user domains"
   },
   "error": {
     "401": "Invalid authentication",

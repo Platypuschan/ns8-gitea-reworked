@@ -11,6 +11,8 @@ The module provides:
 - PostgreSQL 15 with persistent application and database volumes
 - integration with the NS8 smarthost and backup framework
 - private-by-default access settings
+- automatic first-time initialization without Gitea's web installer
+- optional, managed Active Directory login through an NS8 account domain
 
 ## Runtime versions
 
@@ -56,16 +58,81 @@ Use a resolvable fully qualified hostname. Enable Let's Encrypt only when the
 hostname and challenge endpoint are publicly reachable as required by your
 certificate setup.
 
-On first access, complete Gitea's installation form and create the
-administrator account in the **Administrator Account Settings** section.
-Self-registration is disabled after installation, so additional accounts
-should be created by an administrator.
+Gitea's database and installation lock are initialized automatically. The web
+installer is deliberately unavailable, so a partially configured instance
+cannot be claimed from the network. A local `ns8-recovery-admin` account is
+also created with an unknown random password; see [Recovery administrator](#recovery-administrator)
+before relying on it.
 
 The managed defaults are suitable for a private service:
 
 - anonymous users must sign in
 - self-registration is disabled
 - newly created repositories default to private
+
+## Active Directory login
+
+The Settings page can create and maintain one Gitea LDAP authentication source
+from an Active Directory account domain already configured in NS8. For the
+`ad.own-hub.de` domain and the requested groups, the equivalent API call is:
+
+```bash
+api-cli run module/gitea-reworked1/configure-module --data - <<'EOF'
+{
+  "host": "gitea.own-hub.de",
+  "http2https": true,
+  "lets_encrypt": false,
+  "ad_enabled": true,
+  "ad_domain": "ad.own-hub.de",
+  "ad_user_group": "gitea-user",
+  "ad_admin_group": "gitea-admin",
+  "ad_user_search_base": "CN=Users,DC=ad,DC=own-hub,DC=de",
+  "ad_nested_groups": false
+}
+EOF
+```
+
+The rules are intentionally strict:
+
+- every user, including administrators, must be a member of `gitea-user`
+- membership in `gitea-admin` additionally grants Gitea administrator rights
+- disabled AD accounts are rejected
+- direct group membership is used by default; enable nested groups only when
+  indirect memberships are required
+
+Group names are resolved to their actual distinguished names below the AD
+domain base. They therefore do not need to remain in `CN=Users`. If the user
+search base is left blank, the module derives `CN=Users,<domain base DN>`.
+
+The module connects only to the node-local NS8 LDAP proxy. NS8 handles backend
+TLS and replica failover, while Gitea receives the current proxy port and bind
+credentials automatically. An AD outage does not stop Gitea; the last working
+source remains configured and reconciliation is retried on a domain change or
+service restart.
+
+The managed Gitea source is named `NS8 Active Directory`. If another LDAP
+source already exists under a different name, configuration stops instead of
+silently creating a duplicate or overwriting it. Review the existing source,
+then either remove it or rename the intended LDAP-via-Bind-DN source to
+`NS8 Active Directory` so the module can adopt it.
+
+### Recovery administrator
+
+The local `ns8-recovery-admin` is independent of AD and is reserved for
+break-glass access. Its initial random password is not written to logs or module
+state. Set a new password from an NS8 shell when recovery access is needed:
+
+```bash
+read -rsp 'New Gitea recovery password: ' GITEA_RECOVERY_PASSWORD; echo
+runagent -m gitea-reworked1 podman exec --user git gitea-app \
+  gitea --config /data/gitea/conf/app.ini admin user change-password \
+  --username ns8-recovery-admin --password "$GITEA_RECOVERY_PASSWORD"
+unset GITEA_RECOVERY_PASSWORD
+```
+
+Use a unique high-entropy password and do not use this account for routine
+work. If a pre-existing account already uses the reserved name but is inactive
+or is not an administrator, the module refuses to take it over.
 
 ## Git over SSH
 
@@ -87,7 +154,13 @@ Example output:
   "host": "gitea.example.test",
   "http2https": true,
   "lets_encrypt": false,
-  "ssh_port": 20042
+  "ssh_port": 20042,
+  "ad_enabled": true,
+  "ad_domain": "ad.own-hub.de",
+  "ad_user_group": "gitea-user",
+  "ad_admin_group": "gitea-admin",
+  "ad_user_search_base": "CN=Users,DC=ad,DC=own-hub,DC=de",
+  "ad_nested_groups": false
 }
 ```
 
@@ -122,6 +195,8 @@ migration is automatic:
 - one additional NS8 TCP port is allocated for Git SSH
 - the SSH port is opened in the node firewall
 - the canonical public Gitea URL and smarthost variables are corrected
+- the web installer is locked and a recovery administrator is ensured
+- existing managed AD settings are preserved and reconciled
 - existing PostgreSQL data remains on major version 15
 
 Gitea applies its own schema migrations during startup. Wait for the Status
@@ -182,6 +257,8 @@ The repository runs:
 
 - syntax validation for Python, JSON, shell scripts, and current systemd state
   paths
+- unit tests for AD filters, safe source adoption, configuration migration,
+  and recovery-account handling
 - deterministic Yarn install, UI lint, and production UI build
 - the official NS8 install and update scenarios on supported test nodes
 - HTTPS health checks and an SSH protocol-banner check on the allocated port

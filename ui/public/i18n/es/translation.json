@@ -15,7 +15,32 @@
         "test_field": "Campo de prueba",
         "configure_instance": "Configurar {instance}",
         "save": "Guardar",
-        "title": "Ajustes"
+        "title": "Ajustes",
+        "gitea_fqdn": "Nombre de host de Gitea (FQDN)",
+        "lets_encrypt": "Solicitar certificado Let's Encrypt",
+        "http_to_https": "Forzar HTTPS",
+        "enabled": "Activado",
+        "disabled": "Desactivado",
+        "advanced": "Avanzado",
+        "configuring": "Aplicando configuración",
+        "instance_configuration": "Configurar Gitea",
+        "ssh_port": "Puerto TCP Git SSH",
+        "ssh_port_help": "NS8 asigna automáticamente este puerto externo.",
+        "ad_title": "Inicio de sesión con Active Directory",
+        "ad_description": "Gitea configura automáticamente el acceso mediante un dominio de Active Directory registrado en NS8.",
+        "ad_enabled": "Usar Active Directory",
+        "ad_domain": "Dominio Active Directory de NS8",
+        "ad_domain_placeholder": "Seleccionar un dominio Active Directory",
+        "ad_user_group": "Grupo AD permitido",
+        "ad_user_group_help": "Solo los miembros de este grupo pueden iniciar sesión. Predeterminado: gitea-user.",
+        "ad_admin_group": "Grupo AD de administradores de Gitea",
+        "ad_admin_group_help": "Los miembros serán administradores, pero también deben pertenecer al grupo permitido. Predeterminado: gitea-admin.",
+        "ad_user_search_base": "Base de búsqueda de usuarios (opcional)",
+        "ad_user_search_base_placeholder": "CN=Users,DC=ad,DC=example,DC=org",
+        "ad_user_search_base_help": "Déjelo vacío para usar CN=Users seguido del DN base del dominio.",
+        "ad_nested_groups": "Aceptar grupos AD anidados",
+        "ad_nested_groups_help": "Actívelo para aceptar membresías indirectas en gitea-user o gitea-admin.",
+        "ad_groups_must_differ": "Los grupos permitido y administrador deben ser diferentes"
     },
     "common": {
         "required": "Obligatorio",
@@ -49,7 +74,8 @@
         "get-status": "Obtener el estado",
         "configure-module": "Configurar módulo",
         "get-configuration": "Obtener la configuración",
-        "get-name": "Obtener el nombre"
+        "get-name": "Obtener el nombre",
+        "list-user-domains": "Listar dominios de usuario"
     },
     "task": {
         "cannot_create_task": "No se puede crear la tarea {action}"

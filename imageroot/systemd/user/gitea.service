@@ -17,6 +17,7 @@ ExecStartPre=/bin/rm -f %t/gitea.pid %t/gitea.pod-id
 ExecStartPre=/usr/bin/podman pod create --infra-conmon-pidfile %t/gitea.pid \
     --pod-id-file %t/gitea.pod-id \
     --name gitea \
+    --network=slirp4netns:allow_host_loopback=true \
     --publish 127.0.0.1:${TCP_PORT}:3000 \
     --publish ${SSH_TCP_PORT}:22 \
     --replace
