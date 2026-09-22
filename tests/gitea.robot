@@ -25,7 +25,7 @@ Wait until Gitea is healthy
 
 Gitea web installer is reachable
     [Arguments]    ${port}
-    ${rc} =    Execute Command    curl -fsS --max-time 5 -o /dev/null http://127.0.0.1:${port}/install
+    ${rc} =    Execute Command    curl -fsS --max-time 5 -o /dev/null http://127.0.0.1:${port}/
     ...    return_rc=True    return_stdout=False
     Should Be Equal As Integers    ${rc}    0
 
