@@ -22,6 +22,15 @@ AUTH_DEFAULTS = {
     "GITEA_AUTH_NESTED_GROUPS": "false",
 }
 
+SETUP_ENV_FILE = "gitea-setup.env"
+SETUP_MODES = {"pending", "manual", "managed"}
+MANAGED_POLICY_KEYS = {
+    "GITEA__service__DISABLE_REGISTRATION",
+    "GITEA__service__REQUIRE_SIGNIN_VIEW",
+    "GITEA__repository__DEFAULT_PRIVATE",
+    "GITEA__security__INSTALL_LOCK",
+}
+
 
 def parse_bool(value):
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
@@ -36,6 +45,20 @@ def read_env(path):
 
 host = os.environ.get("TRAEFIK_HOST", "").strip().rstrip(".")
 ssh_port = os.environ.get("SSH_TCP_PORT", "").strip()
+
+try:
+    setup = agent.read_envfile(SETUP_ENV_FILE)
+    setup_mode = setup.get("GITEA_SETUP_MODE", "").strip().lower()
+except FileNotFoundError:
+    # A missing marker identifies an instance created by an older release,
+    # whose automatic setup behavior must remain unchanged after an update.
+    setup_mode = "managed"
+agent.assert_exp(
+    setup_mode in SETUP_MODES,
+    "The stored Gitea setup mode is invalid.",
+)
+agent.write_envfile(SETUP_ENV_FILE, {"GITEA_SETUP_MODE": setup_mode})
+os.chmod(SETUP_ENV_FILE, 0o600)
 
 # Releases with one web port need one additional allocation for Git SSH.
 if not ssh_port:
@@ -59,15 +82,22 @@ for key in list(gitea):
     if key.startswith("GITEA__mailer__"):
         del gitea[key]
 
-# Preserve a private-by-default posture across upgrades from older releases.
-gitea.update(
-    {
-        "GITEA__service__DISABLE_REGISTRATION": "true",
-        "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
-        "GITEA__repository__DEFAULT_PRIVATE": "private",
-        "GITEA__security__INSTALL_LOCK": "true",
-    }
-)
+if setup_mode == "managed":
+    # Preserve a private-by-default posture across upgrades from older releases.
+    gitea.update(
+        {
+            "GITEA__service__DISABLE_REGISTRATION": "true",
+            "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
+            "GITEA__repository__DEFAULT_PRIVATE": "private",
+            "GITEA__security__INSTALL_LOCK": "true",
+        }
+    )
+else:
+    # Gitea's installer and administrator own these settings in manual mode.
+    # Pending instances must also keep the installer available until the user
+    # makes the one-time setup choice.
+    for key in MANAGED_POLICY_KEYS:
+        gitea.pop(key, None)
 
 if host:
     gitea.update(
@@ -93,8 +123,11 @@ if database or os.path.exists("gitea-db.env"):
     agent.write_envfile("gitea-db.env", database)
     os.chmod("gitea-db.env", 0o600)
 
-auth = dict(AUTH_DEFAULTS)
-auth.update(read_env("gitea-auth.env"))
+if setup_mode == "managed":
+    auth = dict(AUTH_DEFAULTS)
+    auth.update(read_env("gitea-auth.env"))
+else:
+    auth = dict(AUTH_DEFAULTS)
 agent.write_envfile("gitea-auth.env", auth)
 os.chmod("gitea-auth.env", 0o600)
 
@@ -103,7 +136,9 @@ os.chmod("gitea-auth.env", 0o600)
 auth_domain = auth.get("GITEA_AUTH_DOMAIN", "").strip()
 agent.bind_user_domains(
     [auth_domain]
-    if parse_bool(auth.get("GITEA_AUTH_ENABLED")) and auth_domain
+    if setup_mode == "managed"
+    and parse_bool(auth.get("GITEA_AUTH_ENABLED"))
+    and auth_domain
     else [],
     check=False,
 )

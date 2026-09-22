@@ -22,6 +22,7 @@ from pathlib import Path
 
 
 AUTH_ENV_FILE = "gitea-auth.env"
+SETUP_ENV_FILE = "gitea-setup.env"
 LOCK_FILE = ".gitea-auth.lock"
 MANAGED_SOURCE_NAME = "NS8 Active Directory"
 RECOVERY_USERNAME = "ns8-recovery-admin"
@@ -90,6 +91,21 @@ def read_auth_config() -> AuthConfig:
     except FileNotFoundError:
         values = {}
     return config_from_environment(values)
+
+
+def read_setup_mode() -> str:
+    import agent
+
+    try:
+        values = agent.read_envfile(SETUP_ENV_FILE)
+    except FileNotFoundError:
+        # Instances from releases without a setup marker already use managed
+        # initialization and must retain that behavior after an update.
+        return "managed"
+    mode = values.get("GITEA_SETUP_MODE", "").strip().lower()
+    if mode not in {"pending", "manual", "managed"}:
+        raise ReconcileError("The stored Gitea setup mode is invalid.")
+    return mode
 
 
 def sanitize(message: object, secrets: tuple[str, ...] = ()) -> str:
@@ -570,6 +586,11 @@ def apply_managed_source(
 
 
 def reconcile() -> None:
+    # The web installer and all manually created authentication sources belong
+    # exclusively to Gitea in manual mode. Pending instances have not made the
+    # one-time setup choice yet.
+    if read_setup_mode() != "managed":
+        return
     config = read_auth_config()
     wait_for_gitea()
     ensure_recovery_admin()

@@ -7,6 +7,7 @@ ${IMAGE_URL}         ghcr.io/platypuschan/gitea-reworked:latest
 ${BASELINE_IMAGE}    ghcr.io/geniusdynamics/gitea:latest
 ${SCENARIO}          install
 ${HOST}              gitea.test
+${MANUAL_HOST}       gitea-manual.test
 ${ADMIN_USER}        admin
 ${ADMIN_PASSWORD}    Nethesis,1234
 ${module_id}         ${EMPTY}
@@ -21,6 +22,12 @@ Gitea health endpoint is reachable
 
 Wait until Gitea is healthy
     Wait Until Keyword Succeeds    120 seconds    2 seconds    Gitea health endpoint is reachable
+
+Gitea web installer is reachable
+    [Arguments]    ${port}
+    ${rc} =    Execute Command    curl -fsS --max-time 5 -o /dev/null http://127.0.0.1:${port}/install
+    ...    return_rc=True    return_stdout=False
+    Should Be Equal As Integers    ${rc}    0
 
 Read allocated ports
     ${web} =    Execute Command    runagent -m ${module_id} printenv TCP_PORT
@@ -55,7 +62,12 @@ Add module for ${SCENARIO} scenario
     Set Suite Variable    ${module_id}    ${output.module_id}
 
 Configure module
-    ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '{"host":"${HOST}","http2https":true,"lets_encrypt":false}'
+    IF    r'${SCENARIO}' == 'install'
+        ${configure_data} =    Set Variable    {"host":"${HOST}","http2https":true,"lets_encrypt":false,"setup_mode":"managed"}
+    ELSE
+        ${configure_data} =    Set Variable    {"host":"${HOST}","http2https":true,"lets_encrypt":false}
+    END
+    ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '${configure_data}'
     ...    return_rc=True    return_stdout=False
     Should Be Equal As Integers    ${rc}    0
     ${port} =    Execute Command    runagent -m ${module_id} printenv TCP_PORT
@@ -113,5 +125,33 @@ Take screenshots
 
 Remove module
     ${rc} =    Execute Command    remove-module --no-preserve ${module_id}
+    ...    return_rc=True    return_stdout=False
+    Should Be Equal As Integers    ${rc}    0
+
+Manual setup exposes Gitea web installer
+    IF    r'${SCENARIO}' != 'install'
+        Skip    Manual first-run setup is covered by the install scenario
+    END
+    ${output}    ${rc} =    Execute Command    add-module ${IMAGE_URL} 1
+    ...    return_rc=True
+    Should Be Equal As Integers    ${rc}    0
+    &{output} =    Evaluate    ast.literal_eval(r'''${output}''')    modules=ast
+    ${manual_module_id} =    Set Variable    ${output.module_id}
+    ${rc} =    Execute Command    api-cli run module/${manual_module_id}/configure-module --data '{"host":"${MANUAL_HOST}","http2https":true,"lets_encrypt":false,"setup_mode":"manual","ad_enabled":false}'
+    ...    return_rc=True    return_stdout=False
+    Should Be Equal As Integers    ${rc}    0
+    ${manual_web_port} =    Execute Command    runagent -m ${manual_module_id} printenv TCP_PORT
+    ${manual_web_port} =    Strip String    ${manual_web_port}
+    Wait Until Keyword Succeeds    120 seconds    2 seconds    Gitea web installer is reachable    ${manual_web_port}
+    ${mode}    ${mode_rc} =    Execute Command    runagent -m ${manual_module_id} grep -Fx 'GITEA_SETUP_MODE=manual' gitea-setup.env
+    ...    return_rc=True
+    Should Be Equal As Integers    ${mode_rc}    0    Manual setup marker is missing: ${mode}
+    ${config}    ${config_rc} =    Execute Command    runagent -m ${manual_module_id} podman exec gitea-app grep -F 'INSTALL_LOCK = false' /data/gitea/conf/app.ini
+    ...    return_rc=True
+    Should Be Equal As Integers    ${config_rc}    0    Gitea web installer is locked: ${config}
+    ${override}    ${override_rc} =    Execute Command    runagent -m ${manual_module_id} grep -F 'GITEA__security__INSTALL_LOCK' gitea.env
+    ...    return_rc=True
+    Should Not Be Equal As Integers    ${override_rc}    0    Manual setup must not override INSTALL_LOCK: ${override}
+    ${rc} =    Execute Command    remove-module --no-preserve ${manual_module_id}
     ...    return_rc=True    return_stdout=False
     Should Be Equal As Integers    ${rc}    0
