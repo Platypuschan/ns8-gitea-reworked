@@ -61,6 +61,116 @@
                 $t("settings.enabled")
               }}</template>
             </cv-toggle>
+            <div class="ad-settings">
+              <h3>{{ $t("settings.ad_title") }}</h3>
+              <p class="section-description">
+                {{ $t("settings.ad_description") }}
+              </p>
+              <cv-toggle
+                value="adAuthentication"
+                :label="$t('settings.ad_enabled')"
+                v-model="isAdEnabled"
+                :disabled="loading.getConfiguration || loading.configureModule"
+                class="mg-bottom"
+              >
+                <template slot="text-left">{{
+                  $t("settings.disabled")
+                }}</template>
+                <template slot="text-right">{{
+                  $t("settings.enabled")
+                }}</template>
+              </cv-toggle>
+              <template v-if="isAdEnabled">
+                <NsInlineNotification
+                  v-if="error.listUserDomains"
+                  kind="error"
+                  :title="$t('action.list-user-domains')"
+                  :description="error.listUserDomains"
+                  :showCloseButton="false"
+                  class="mg-bottom"
+                />
+                <NsComboBox
+                  v-model="adDomain"
+                  :options="adDomains"
+                  auto-highlight
+                  :title="$t('settings.ad_domain')"
+                  :label="$t('settings.ad_domain_placeholder')"
+                  :invalid-message="$t(error.ad_domain)"
+                  :disabled="
+                    loading.getConfiguration ||
+                    loading.configureModule ||
+                    loading.listUserDomains
+                  "
+                  class="mg-bottom"
+                  ref="ad_domain"
+                >
+                </NsComboBox>
+                <cv-text-input
+                  :label="$t('settings.ad_user_group')"
+                  placeholder="gitea-user"
+                  v-model.trim="adUserGroup"
+                  class="mg-bottom"
+                  :invalid-message="$t(error.ad_user_group)"
+                  :disabled="
+                    loading.getConfiguration || loading.configureModule
+                  "
+                  ref="ad_user_group"
+                >
+                </cv-text-input>
+                <p class="field-help">
+                  {{ $t("settings.ad_user_group_help") }}
+                </p>
+                <cv-text-input
+                  :label="$t('settings.ad_admin_group')"
+                  placeholder="gitea-admin"
+                  v-model.trim="adAdminGroup"
+                  class="mg-bottom"
+                  :invalid-message="$t(error.ad_admin_group)"
+                  :disabled="
+                    loading.getConfiguration || loading.configureModule
+                  "
+                  ref="ad_admin_group"
+                >
+                </cv-text-input>
+                <p class="field-help">
+                  {{ $t("settings.ad_admin_group_help") }}
+                </p>
+                <cv-text-input
+                  :label="$t('settings.ad_user_search_base')"
+                  :placeholder="$t('settings.ad_user_search_base_placeholder')"
+                  v-model.trim="adUserSearchBase"
+                  class="mg-bottom"
+                  :invalid-message="$t(error.ad_user_search_base)"
+                  :disabled="
+                    loading.getConfiguration || loading.configureModule
+                  "
+                  ref="ad_user_search_base"
+                >
+                </cv-text-input>
+                <p class="field-help">
+                  {{ $t("settings.ad_user_search_base_help") }}
+                </p>
+                <cv-toggle
+                  value="adNestedGroups"
+                  :label="$t('settings.ad_nested_groups')"
+                  v-model="adNestedGroups"
+                  :disabled="
+                    loading.getConfiguration || loading.configureModule
+                  "
+                  class="mg-bottom"
+                >
+                  <template slot="text-left">{{
+                    $t("settings.disabled")
+                  }}</template>
+                  <template slot="text-right">{{
+                    $t("settings.enabled")
+                  }}</template>
+                </cv-toggle>
+                <p class="field-help">
+                  {{ $t("settings.ad_nested_groups_help") }}
+                </p>
+              </template>
+            </div>
             <!-- advanced options -->
             <cv-accordion class="maxwidth mg-bottom">
               <cv-accordion-item>
@@ -131,9 +241,17 @@ export default {
       sshPort: 0,
       isLetsEncryptEnabled: false,
       isHttpToHttpsEnabled: true,
+      isAdEnabled: false,
+      adDomain: "",
+      adDomains: [],
+      adUserGroup: "gitea-user",
+      adAdminGroup: "gitea-admin",
+      adUserSearchBase: "",
+      adNestedGroups: false,
       loading: {
         getConfiguration: false,
         configureModule: false,
+        listUserDomains: false,
       },
       error: {
         getConfiguration: "",
@@ -141,6 +259,11 @@ export default {
         host: "",
         lets_encrypt: "",
         http2https: "",
+        listUserDomains: "",
+        ad_domain: "",
+        ad_user_group: "",
+        ad_admin_group: "",
+        ad_user_search_base: "",
       },
     };
   },
@@ -149,6 +272,7 @@ export default {
   },
   created() {
     this.getConfiguration();
+    this.listUserDomains();
   },
   beforeRouteEnter(to, from, next) {
     next((vm) => {
@@ -209,6 +333,12 @@ export default {
       this.sshPort = config.ssh_port;
       this.isLetsEncryptEnabled = config.lets_encrypt;
       this.isHttpToHttpsEnabled = config.http2https;
+      this.isAdEnabled = config.ad_enabled;
+      this.adDomain = config.ad_domain;
+      this.adUserGroup = config.ad_user_group;
+      this.adAdminGroup = config.ad_admin_group;
+      this.adUserSearchBase = config.ad_user_search_base;
+      this.adNestedGroups = config.ad_nested_groups;
 
       this.loading.getConfiguration = false;
       this.focusElement("host");
@@ -222,6 +352,40 @@ export default {
 
         if (isValidationOk) {
           this.focusElement("host");
+        }
+        isValidationOk = false;
+      }
+      if (this.isAdEnabled && !this.adDomain) {
+        this.error.ad_domain = "common.required";
+        if (isValidationOk) {
+          this.focusElement("ad_domain");
+        }
+        isValidationOk = false;
+      }
+      if (this.isAdEnabled && !this.adUserGroup) {
+        this.error.ad_user_group = "common.required";
+        if (isValidationOk) {
+          this.focusElement("ad_user_group");
+        }
+        isValidationOk = false;
+      }
+      if (this.isAdEnabled && !this.adAdminGroup) {
+        this.error.ad_admin_group = "common.required";
+        if (isValidationOk) {
+          this.focusElement("ad_admin_group");
+        }
+        isValidationOk = false;
+      }
+      if (
+        this.isAdEnabled &&
+        this.adUserGroup &&
+        this.adAdminGroup &&
+        this.adUserGroup.toLocaleLowerCase() ===
+          this.adAdminGroup.toLocaleLowerCase()
+      ) {
+        this.error.ad_admin_group = "settings.ad_groups_must_differ";
+        if (isValidationOk) {
+          this.focusElement("ad_admin_group");
         }
         isValidationOk = false;
       }
@@ -276,6 +440,12 @@ export default {
             host: this.host,
             lets_encrypt: this.isLetsEncryptEnabled,
             http2https: this.isHttpToHttpsEnabled,
+            ad_enabled: this.isAdEnabled,
+            ad_domain: this.adDomain,
+            ad_user_group: this.adUserGroup,
+            ad_admin_group: this.adAdminGroup,
+            ad_user_search_base: this.adUserSearchBase,
+            ad_nested_groups: this.adNestedGroups,
           },
           extra: {
             title: this.$t("settings.instance_configuration", {
@@ -306,6 +476,53 @@ export default {
       // reload configuration
       this.getConfiguration();
     },
+    async listUserDomains() {
+      this.loading.listUserDomains = true;
+      this.error.listUserDomains = "";
+      const taskAction = "list-user-domains";
+      const eventId = this.getUuid();
+
+      this.core.$root.$once(
+        `${taskAction}-aborted-${eventId}`,
+        this.listUserDomainsAborted
+      );
+      this.core.$root.$once(
+        `${taskAction}-completed-${eventId}`,
+        this.listUserDomainsCompleted
+      );
+
+      const res = await to(
+        this.createClusterTaskForApp({
+          action: taskAction,
+          extra: {
+            title: this.$t("action." + taskAction),
+            isNotificationHidden: true,
+            eventId,
+          },
+        })
+      );
+      const err = res[0];
+      if (err) {
+        console.error(`error creating task ${taskAction}`, err);
+        this.error.listUserDomains = this.getErrorMessage(err);
+        this.loading.listUserDomains = false;
+      }
+    },
+    listUserDomainsAborted(taskResult, taskContext) {
+      console.error(`${taskContext.action} aborted`, taskResult);
+      this.error.listUserDomains = this.$t("error.generic_error");
+      this.loading.listUserDomains = false;
+    },
+    listUserDomainsCompleted(taskContext, taskResult) {
+      this.adDomains = taskResult.output.domains
+        .filter((domain) => domain.schema === "ad")
+        .map((domain) => ({
+          name: domain.name,
+          label: domain.name,
+          value: domain.name,
+        }));
+      this.loading.listUserDomains = false;
+    },
   },
 };
 </script>
@@ -322,5 +539,21 @@ export default {
 
 .ssh-port {
   margin-bottom: $spacing-03;
+}
+
+.ad-settings {
+  max-width: 38rem;
+  margin: $spacing-07 0;
+  padding-top: $spacing-05;
+  border-top: 1px solid $ui-03;
+}
+
+.section-description {
+  margin: $spacing-03 0 $spacing-06;
+}
+
+.field-help {
+  margin: -$spacing-05 0 $spacing-06;
+  color: $text-02;
 }
 </style>

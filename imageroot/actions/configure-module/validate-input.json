@@ -7,7 +7,13 @@
         {
             "host": "gitea.domain.org",
             "http2https": true,
-            "lets_encrypt": true
+            "lets_encrypt": true,
+            "ad_enabled": true,
+            "ad_domain": "ad.domain.org",
+            "ad_user_group": "gitea-user",
+            "ad_admin_group": "gitea-admin",
+            "ad_user_search_base": "CN=Users,DC=ad,DC=domain,DC=org",
+            "ad_nested_groups": false
         }
     ],
     "type": "object",
@@ -32,6 +38,63 @@
             "type": "boolean",
             "title": "HTTP to HTTPS redirection",
             "description": "Redirect all the HTTP requests to HTTPS"
+        },
+        "ad_enabled": {
+            "type": "boolean",
+            "title": "Active Directory authentication",
+            "description": "Manage a Gitea LDAP authentication source from an NS8 Active Directory domain.",
+            "default": false
+        },
+        "ad_domain": {
+            "type": "string",
+            "title": "NS8 Active Directory domain",
+            "maxLength": 253,
+            "default": ""
+        },
+        "ad_user_group": {
+            "type": "string",
+            "title": "Allowed AD group",
+            "maxLength": 256,
+            "default": "gitea-user"
+        },
+        "ad_admin_group": {
+            "type": "string",
+            "title": "Gitea administrators AD group",
+            "maxLength": 256,
+            "default": "gitea-admin"
+        },
+        "ad_user_search_base": {
+            "type": "string",
+            "title": "AD user search base",
+            "maxLength": 2048,
+            "default": ""
+        },
+        "ad_nested_groups": {
+            "type": "boolean",
+            "title": "Accept nested AD group membership",
+            "default": false
         }
-    }
+    },
+    "allOf": [
+        {
+            "if": {
+                "required": ["ad_enabled"],
+                "properties": {
+                    "ad_enabled": {"const": true}
+                }
+            },
+            "then": {
+                "required": [
+                    "ad_domain",
+                    "ad_user_group",
+                    "ad_admin_group"
+                ],
+                "properties": {
+                    "ad_domain": {"minLength": 1},
+                    "ad_user_group": {"minLength": 1},
+                    "ad_admin_group": {"minLength": 1}
+                }
+            }
+        }
+    ]
 }

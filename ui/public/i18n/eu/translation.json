@@ -15,7 +15,32 @@
         "test_field": "Proba-eremua",
         "configure_instance": "{instance} konfiguratu",
         "save": "Gorde",
-        "title": "Ezarpenak"
+        "title": "Ezarpenak",
+        "gitea_fqdn": "Gitea ostalari-izena (FQDN)",
+        "lets_encrypt": "Eskatu Let's Encrypt ziurtagiria",
+        "http_to_https": "Behartu HTTPS",
+        "enabled": "Gaituta",
+        "disabled": "Desgaituta",
+        "advanced": "Aurreratua",
+        "configuring": "Konfigurazioa aplikatzen",
+        "instance_configuration": "Konfiguratu Gitea",
+        "ssh_port": "Git SSH TCP ataka",
+        "ssh_port_help": "NS8k automatikoki esleitzen du kanpoko ataka hau.",
+        "ad_title": "Active Directory saio-hasiera",
+        "ad_description": "Giteak automatikoki konfiguratzen du saio-hasiera NS8n erregistratutako Active Directory domeinu baten bidez.",
+        "ad_enabled": "Erabili Active Directory",
+        "ad_domain": "NS8 Active Directory domeinua",
+        "ad_domain_placeholder": "Hautatu Active Directory domeinua",
+        "ad_user_group": "Baimendutako AD taldea",
+        "ad_user_group_help": "Talde honetako kideek bakarrik hasi dezakete saioa. Lehenetsia: gitea-user.",
+        "ad_admin_group": "Gitea administratzaileen AD taldea",
+        "ad_admin_group_help": "Kideak administratzaile bihurtzen dira, baina baimendutako taldekoak ere izan behar dute. Lehenetsia: gitea-admin.",
+        "ad_user_search_base": "Erabiltzaile-bilaketaren oinarria (aukerakoa)",
+        "ad_user_search_base_placeholder": "CN=Users,DC=ad,DC=example,DC=org",
+        "ad_user_search_base_help": "Utzi hutsik CN=Users eta domeinuaren oinarrizko DNa erabiltzeko.",
+        "ad_nested_groups": "Onartu habiaratutako AD taldeak",
+        "ad_nested_groups_help": "Gaitu gitea-user edo gitea-admin taldeetako zeharkako kidetza onartzeko.",
+        "ad_groups_must_differ": "Baimendutako eta administratzaile taldeen izenek desberdinak izan behar dute"
     },
     "common": {
         "required": "Beharrezkoa",
@@ -49,7 +74,8 @@
         "get-status": "Egoera berreskuratu",
         "configure-module": "Modulua konfiguratu",
         "get-configuration": "Konfigurazioa berreskuratu",
-        "get-name": "Izena berreskuratu"
+        "get-name": "Izena berreskuratu",
+        "list-user-domains": "Erabiltzaile-domeinuak zerrendatu"
     },
     "task": {
         "cannot_create_task": "Ezin da zeregina {action} sortu"

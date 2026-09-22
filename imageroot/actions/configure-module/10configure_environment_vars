@@ -12,6 +12,21 @@ import sys
 import agent
 
 
+AUTH_DEFAULTS = {
+    "GITEA_AUTH_ENABLED": "false",
+    "GITEA_AUTH_SOURCE_MANAGED": "false",
+    "GITEA_AUTH_DOMAIN": "",
+    "GITEA_AUTH_USER_GROUP": "gitea-user",
+    "GITEA_AUTH_ADMIN_GROUP": "gitea-admin",
+    "GITEA_AUTH_USER_SEARCH_BASE": "",
+    "GITEA_AUTH_NESTED_GROUPS": "false",
+}
+
+
+def parse_bool(value):
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 data = json.load(sys.stdin)
 host = data["host"].strip().rstrip(".")
 ssh_port = os.environ["SSH_TCP_PORT"]
@@ -41,7 +56,67 @@ gitea.update(
         "GITEA__service__DISABLE_REGISTRATION": "true",
         "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
         "GITEA__repository__DEFAULT_PRIVATE": "private",
+        # Skip the interactive installer. Database migrations and all initial
+        # security settings are applied automatically by Gitea and this module.
+        "GITEA__security__INSTALL_LOCK": "true",
     }
 )
 agent.write_envfile("gitea.env", gitea)
 os.chmod("gitea.env", 0o600)
+
+try:
+    auth = agent.read_envfile("gitea-auth.env")
+except FileNotFoundError:
+    auth = dict(AUTH_DEFAULTS)
+
+# Older API clients do not send AD fields. Preserve the existing settings in
+# that case so host/certificate changes and restores cannot disable AD login.
+auth_fields = {
+    "ad_enabled",
+    "ad_domain",
+    "ad_user_group",
+    "ad_admin_group",
+    "ad_user_search_base",
+    "ad_nested_groups",
+}
+if auth_fields.intersection(data):
+    enabled = bool(data.get("ad_enabled", False))
+    domain = str(data.get("ad_domain", "")).strip()
+    user_group = str(data.get("ad_user_group", "gitea-user")).strip()
+    admin_group = str(data.get("ad_admin_group", "gitea-admin")).strip()
+    user_search_base = str(data.get("ad_user_search_base", "")).strip()
+    nested_groups = bool(data.get("ad_nested_groups", False))
+
+    agent.assert_exp(not enabled or domain, "An AD account domain is required.")
+    agent.assert_exp(not enabled or user_group, "The AD user group is required.")
+    agent.assert_exp(not enabled or admin_group, "The AD admin group is required.")
+    agent.assert_exp(
+        not enabled or user_group.casefold() != admin_group.casefold(),
+        "The AD user and administrator groups must be different.",
+    )
+    auth.update(
+        {
+            "GITEA_AUTH_ENABLED": str(enabled).lower(),
+            # Once enabled, this reserved source remains module-managed so a
+            # later disable operation can safely deactivate it. Legacy sources
+            # are never touched merely because their name happens to match.
+            "GITEA_AUTH_SOURCE_MANAGED": str(
+                enabled
+                or parse_bool(auth.get("GITEA_AUTH_SOURCE_MANAGED", "false"))
+            ).lower(),
+            "GITEA_AUTH_DOMAIN": domain,
+            "GITEA_AUTH_USER_GROUP": user_group,
+            "GITEA_AUTH_ADMIN_GROUP": admin_group,
+            "GITEA_AUTH_USER_SEARCH_BASE": user_search_base,
+            "GITEA_AUTH_NESTED_GROUPS": str(nested_groups).lower(),
+        }
+    )
+else:
+    auth = AUTH_DEFAULTS | auth
+
+agent.write_envfile("gitea-auth.env", auth)
+os.chmod("gitea-auth.env", 0o600)
+
+enabled = parse_bool(auth.get("GITEA_AUTH_ENABLED"))
+domain = auth.get("GITEA_AUTH_DOMAIN", "").strip()
+agent.bind_user_domains([domain] if enabled and domain else [], check=True)

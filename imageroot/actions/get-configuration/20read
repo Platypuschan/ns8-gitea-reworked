@@ -9,13 +9,42 @@ import json
 import os
 import sys
 
+import agent
+
+
+AUTH_DEFAULTS = {
+    "GITEA_AUTH_ENABLED": "false",
+    "GITEA_AUTH_SOURCE_MANAGED": "false",
+    "GITEA_AUTH_DOMAIN": "",
+    "GITEA_AUTH_USER_GROUP": "gitea-user",
+    "GITEA_AUTH_ADMIN_GROUP": "gitea-admin",
+    "GITEA_AUTH_USER_SEARCH_BASE": "",
+    "GITEA_AUTH_NESTED_GROUPS": "false",
+}
+
+
+def parse_bool(value):
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
 
 ssh_port = os.environ.get("SSH_TCP_PORT", "")
+try:
+    auth_environment = agent.read_envfile("gitea-auth.env")
+except FileNotFoundError:
+    auth_environment = {}
+auth = AUTH_DEFAULTS | auth_environment
+
 configuration = {
     "host": os.environ.get("TRAEFIK_HOST", ""),
     "http2https": os.environ.get("TRAEFIK_HTTP2HTTPS") == "True",
     "lets_encrypt": os.environ.get("TRAEFIK_LETS_ENCRYPT") == "True",
     "ssh_port": int(ssh_port) if ssh_port.isdigit() else 0,
+    "ad_enabled": parse_bool(auth["GITEA_AUTH_ENABLED"]),
+    "ad_domain": auth["GITEA_AUTH_DOMAIN"].strip(),
+    "ad_user_group": auth["GITEA_AUTH_USER_GROUP"].strip(),
+    "ad_admin_group": auth["GITEA_AUTH_ADMIN_GROUP"].strip(),
+    "ad_user_search_base": auth["GITEA_AUTH_USER_SEARCH_BASE"].strip(),
+    "ad_nested_groups": parse_bool(auth["GITEA_AUTH_NESTED_GROUPS"]),
 }
 
 json.dump(configuration, fp=sys.stdout)

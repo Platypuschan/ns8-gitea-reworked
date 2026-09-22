@@ -24,12 +24,39 @@
     },
     "action": {
         "list-backup-repositories": "List backup repositories",
-        "list-backups": "List backups"
+        "list-backups": "List backups",
+        "list-user-domains": "List user domains"
     },
     "task": {
         "cannot_create_task": "Cannot create task {action}"
     },
     "settings": {
-        "title": "Settings"
+        "title": "Configurações",
+        "save": "Salvar",
+        "gitea_fqdn": "Nome do host Gitea (FQDN)",
+        "lets_encrypt": "Solicitar certificado Let's Encrypt",
+        "http_to_https": "Forçar HTTPS",
+        "enabled": "Ativado",
+        "disabled": "Desativado",
+        "advanced": "Avançado",
+        "configuring": "Aplicando configuração",
+        "instance_configuration": "Configurar Gitea",
+        "ssh_port": "Porta TCP Git SSH",
+        "ssh_port_help": "O NS8 atribui automaticamente esta porta externa.",
+        "ad_title": "Login do Active Directory",
+        "ad_description": "O Gitea configura automaticamente o login por um domínio Active Directory registrado no NS8.",
+        "ad_enabled": "Usar Active Directory",
+        "ad_domain": "Domínio Active Directory do NS8",
+        "ad_domain_placeholder": "Selecionar um domínio Active Directory",
+        "ad_user_group": "Grupo AD permitido",
+        "ad_user_group_help": "Somente membros deste grupo podem entrar. Padrão: gitea-user.",
+        "ad_admin_group": "Grupo AD de administradores do Gitea",
+        "ad_admin_group_help": "Os membros tornam-se administradores, mas também devem pertencer ao grupo permitido. Padrão: gitea-admin.",
+        "ad_user_search_base": "Base de pesquisa de usuários (opcional)",
+        "ad_user_search_base_placeholder": "CN=Users,DC=ad,DC=example,DC=org",
+        "ad_user_search_base_help": "Deixe vazio para usar CN=Users seguido pelo DN base do domínio.",
+        "ad_nested_groups": "Aceitar grupos AD aninhados",
+        "ad_nested_groups_help": "Ative para aceitar associações indiretas a gitea-user ou gitea-admin.",
+        "ad_groups_must_differ": "Os grupos permitido e administrador devem ser diferentes"
     }
 }
