@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import subprocess
+import sys
+
+import agent
+
+
+def parse_bool(value):
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+try:
+    event = json.load(sys.stdin)
+except (json.JSONDecodeError, TypeError):
+    sys.exit(0)
+
+try:
+    config = agent.read_envfile("gitea-auth.env")
+except FileNotFoundError:
+    sys.exit(0)
+
+domain = config.get("GITEA_AUTH_DOMAIN", "").strip()
+if (
+    not parse_bool(config.get("GITEA_AUTH_ENABLED", "false"))
+    or domain not in event.get("domains", [])
+):
+    sys.exit(0)
+
+if subprocess.run(
+    ["systemctl", "--user", "is-active", "--quiet", "gitea-app.service"],
+    check=False,
+).returncode == 0:
+    # Gitea must remain available if AD is temporarily unreachable. A future
+    # domain event or service restart retries this idempotent reconciliation.
+    subprocess.run(["runagent", "reconcile-gitea-auth"], check=False)

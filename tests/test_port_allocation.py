@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 import os
 import runpy
 import stat
@@ -14,6 +15,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 CREATE_SCRIPT = ROOT / "imageroot/actions/create-module/10configure_environment_vars"
+CONFIGURE_SCRIPT = ROOT / "imageroot/actions/configure-module/10configure_environment_vars"
 MIGRATION_SCRIPT = ROOT / "imageroot/bin/migrate-environment"
 RESTORE_SCRIPT = ROOT / "imageroot/actions/restore-module/40restore_database"
 BUILD_SCRIPT = ROOT / "build-images.sh"
@@ -26,6 +28,7 @@ class FakeAgent(types.ModuleType):
         self.environment = {}
         self.allocations = []
         self.public_services = []
+        self.bound_domains = []
 
     @staticmethod
     def assert_exp(expression, message=""):
@@ -53,6 +56,10 @@ class FakeAgent(types.ModuleType):
 
     def add_public_service(self, name, ports, replace_ports=False):
         self.public_services.append((name, ports, replace_ports))
+        return True
+
+    def bind_user_domains(self, domains, check=False):
+        self.bound_domains.append((list(domains), check))
         return True
 
 
@@ -149,10 +156,24 @@ class PortAllocationTests(unittest.TestCase):
                 gitea["GITEA__repository__DEFAULT_PRIVATE"],
                 "private",
             )
+            self.assertEqual(gitea["GITEA__security__INSTALL_LOCK"], "true")
             self.assertEqual(
                 agent.files["gitea-db.env"]["GITEA__database__HOST"],
                 "127.0.0.1:5432",
             )
+            self.assertEqual(
+                agent.files["gitea-auth.env"],
+                {
+                    "GITEA_AUTH_ENABLED": "false",
+                    "GITEA_AUTH_SOURCE_MANAGED": "false",
+                    "GITEA_AUTH_DOMAIN": "",
+                    "GITEA_AUTH_USER_GROUP": "gitea-user",
+                    "GITEA_AUTH_ADMIN_GROUP": "gitea-admin",
+                    "GITEA_AUTH_USER_SEARCH_BASE": "",
+                    "GITEA_AUTH_NESTED_GROUPS": "false",
+                },
+            )
+            self.assertEqual(agent.bound_domains, [([], False)])
             self.assertEqual(
                 stat.S_IMODE((state / "smarthost.env").stat().st_mode),
                 0o600,
@@ -175,10 +196,84 @@ class PortAllocationTests(unittest.TestCase):
             [("gitea-reworked1", ["25000/tcp"], True)],
         )
 
+    def test_configure_enables_managed_ad_and_locks_installer(self):
+        agent = FakeAgent()
+        environment = {"SSH_TCP_PORT": "25000"}
+        request = {
+            "host": "git.own-hub.de",
+            "http2https": True,
+            "lets_encrypt": False,
+            "ad_enabled": True,
+            "ad_domain": "ad.own-hub.de",
+            "ad_user_group": "gitea-user",
+            "ad_admin_group": "gitea-admin",
+            "ad_user_search_base": "CN=Users,DC=ad,DC=own-hub,DC=de",
+            "ad_nested_groups": False,
+        }
+
+        with isolated_state(agent, environment, json.dumps(request)) as state:
+            runpy.run_path(str(CONFIGURE_SCRIPT), run_name="__main__")
+
+            self.assertEqual(
+                agent.files["gitea.env"]["GITEA__security__INSTALL_LOCK"],
+                "true",
+            )
+            self.assertEqual(
+                agent.files["gitea-auth.env"],
+                {
+                    "GITEA_AUTH_ENABLED": "true",
+                    "GITEA_AUTH_SOURCE_MANAGED": "true",
+                    "GITEA_AUTH_DOMAIN": "ad.own-hub.de",
+                    "GITEA_AUTH_USER_GROUP": "gitea-user",
+                    "GITEA_AUTH_ADMIN_GROUP": "gitea-admin",
+                    "GITEA_AUTH_USER_SEARCH_BASE": (
+                        "CN=Users,DC=ad,DC=own-hub,DC=de"
+                    ),
+                    "GITEA_AUTH_NESTED_GROUPS": "false",
+                },
+            )
+            self.assertEqual(
+                agent.bound_domains,
+                [(["ad.own-hub.de"], True)],
+            )
+            self.assertEqual(
+                stat.S_IMODE((state / "gitea-auth.env").stat().st_mode),
+                0o600,
+            )
+
+    def test_legacy_configure_request_preserves_ad_settings(self):
+        agent = FakeAgent()
+        agent.files["gitea-auth.env"] = {
+            "GITEA_AUTH_ENABLED": "true",
+            "GITEA_AUTH_SOURCE_MANAGED": "true",
+            "GITEA_AUTH_DOMAIN": "ad.own-hub.de",
+            "GITEA_AUTH_USER_GROUP": "gitea-user",
+            "GITEA_AUTH_ADMIN_GROUP": "gitea-admin",
+            "GITEA_AUTH_USER_SEARCH_BASE": "",
+            "GITEA_AUTH_NESTED_GROUPS": "true",
+        }
+        environment = {"SSH_TCP_PORT": "25000"}
+        request = {
+            "host": "git.own-hub.de",
+            "http2https": True,
+            "lets_encrypt": False,
+        }
+
+        with isolated_state(agent, environment, json.dumps(request)):
+            (Path.cwd() / "gitea-auth.env").touch()
+            runpy.run_path(str(CONFIGURE_SCRIPT), run_name="__main__")
+
+        self.assertEqual(
+            agent.files["gitea-auth.env"]["GITEA_AUTH_NESTED_GROUPS"],
+            "true",
+        )
+        self.assertEqual(agent.bound_domains, [(["ad.own-hub.de"], True)])
+
     def test_node_roles_are_combined_in_one_authorization(self):
         build_script = BUILD_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("node:fwadm,portsadm", build_script)
         self.assertNotIn("node:fwadm node:portsadm", build_script)
+        self.assertIn("cluster:accountconsumer", build_script)
 
 
 class BackupRestoreTests(unittest.TestCase):
