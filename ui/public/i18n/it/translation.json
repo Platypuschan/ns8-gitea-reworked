@@ -24,7 +24,32 @@
         "save": "Salva",
         "title": "Impostazioni",
         "configure_instance": "Configura {instance}",
-        "test_field": "Campo di test"
+        "test_field": "Campo di test",
+        "gitea_fqdn": "Nome host Gitea (FQDN)",
+        "lets_encrypt": "Richiedi certificato Let's Encrypt",
+        "http_to_https": "Forza HTTPS",
+        "enabled": "Abilitato",
+        "disabled": "Disabilitato",
+        "advanced": "Avanzate",
+        "configuring": "Applicazione della configurazione",
+        "instance_configuration": "Configura Gitea",
+        "ssh_port": "Porta TCP Git SSH",
+        "ssh_port_help": "NS8 assegna automaticamente questa porta esterna.",
+        "ad_title": "Accesso Active Directory",
+        "ad_description": "Gitea configura automaticamente l'accesso tramite un dominio Active Directory registrato in NS8.",
+        "ad_enabled": "Usa Active Directory",
+        "ad_domain": "Dominio Active Directory NS8",
+        "ad_domain_placeholder": "Seleziona un dominio Active Directory",
+        "ad_user_group": "Gruppo AD autorizzato",
+        "ad_user_group_help": "Solo i membri di questo gruppo possono accedere. Predefinito: gitea-user.",
+        "ad_admin_group": "Gruppo AD amministratori Gitea",
+        "ad_admin_group_help": "I membri diventano amministratori, ma devono appartenere anche al gruppo autorizzato. Predefinito: gitea-admin.",
+        "ad_user_search_base": "Base di ricerca utenti (opzionale)",
+        "ad_user_search_base_placeholder": "CN=Users,DC=ad,DC=example,DC=org",
+        "ad_user_search_base_help": "Lascia vuoto per usare CN=Users seguito dal DN base del dominio.",
+        "ad_nested_groups": "Accetta gruppi AD nidificati",
+        "ad_nested_groups_help": "Abilita per accettare appartenenze indirette a gitea-user o gitea-admin.",
+        "ad_groups_must_differ": "Il gruppo autorizzato e quello amministratore devono essere diversi"
     },
     "error": {
         "error": "Errore",
@@ -46,7 +71,8 @@
         "get-name": "Visualizza nome",
         "list-backup-repositories": "Elenca repository di backup",
         "list-backups": "Elenca backup",
-        "list-installed-modules": "Elenco moduli installati"
+        "list-installed-modules": "Elenco moduli installati",
+        "list-user-domains": "Elenca domini utente"
     },
     "task": {
         "cannot_create_task": "Impossibile eseguire task {action}"

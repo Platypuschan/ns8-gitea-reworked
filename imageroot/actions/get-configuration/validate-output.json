@@ -8,7 +8,13 @@
       "host": "gitea.domain.org",
       "http2https": true,
       "lets_encrypt": true,
-      "ssh_port": 20001
+      "ssh_port": 20001,
+      "ad_enabled": true,
+      "ad_domain": "ad.domain.org",
+      "ad_user_group": "gitea-user",
+      "ad_admin_group": "gitea-admin",
+      "ad_user_search_base": "CN=Users,DC=ad,DC=domain,DC=org",
+      "ad_nested_groups": false
     }
   ],
   "type": "object",
@@ -16,7 +22,13 @@
     "host",
     "http2https",
     "lets_encrypt",
-    "ssh_port"
+    "ssh_port",
+    "ad_enabled",
+    "ad_domain",
+    "ad_user_group",
+    "ad_admin_group",
+    "ad_user_search_base",
+    "ad_nested_groups"
   ],
   "properties": {
     "host": {
@@ -40,6 +52,30 @@
       "description": "Externally allocated NS8 TCP port forwarded to Gitea SSH.",
       "minimum": 0,
       "maximum": 65535
+    },
+    "ad_enabled": {
+      "type": "boolean",
+      "title": "Active Directory authentication enabled"
+    },
+    "ad_domain": {
+      "type": "string",
+      "title": "NS8 Active Directory domain"
+    },
+    "ad_user_group": {
+      "type": "string",
+      "title": "Allowed AD group"
+    },
+    "ad_admin_group": {
+      "type": "string",
+      "title": "Gitea administrators AD group"
+    },
+    "ad_user_search_base": {
+      "type": "string",
+      "title": "AD user search base"
+    },
+    "ad_nested_groups": {
+      "type": "boolean",
+      "title": "Accept nested AD group membership"
     }
   }
 }

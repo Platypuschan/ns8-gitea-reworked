@@ -75,6 +75,15 @@ Check web and SSH ports after install or update
     Read allocated ports
     Wait until Gitea is healthy
 
+Check automated initial setup
+    ${config}    ${config_rc} =    Execute Command    runagent -m ${module_id} podman exec gitea-app grep -F 'INSTALL_LOCK = true' /data/gitea/conf/app.ini
+    ...    return_rc=True
+    Should Be Equal As Integers    ${config_rc}    0    Gitea installer is not locked: ${config}
+    ${users}    ${users_rc} =    Execute Command    runagent -m ${module_id} podman exec --user git gitea-app gitea --config /data/gitea/conf/app.ini admin user list
+    ...    return_rc=True
+    Should Be Equal As Integers    ${users_rc}    0    Cannot list Gitea users: ${users}
+    Should Contain    ${users}    ns8-recovery-admin
+
 Check public HTTPS route
     ${rc} =    Execute Command    curl -kfsS --max-time 10 --resolve ${HOST}:443:127.0.0.1 https://${HOST}/api/healthz
     ...    return_rc=True    return_stdout=False

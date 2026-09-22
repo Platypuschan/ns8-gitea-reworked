@@ -12,6 +12,21 @@ import os
 import agent
 
 
+AUTH_DEFAULTS = {
+    "GITEA_AUTH_ENABLED": "false",
+    "GITEA_AUTH_SOURCE_MANAGED": "false",
+    "GITEA_AUTH_DOMAIN": "",
+    "GITEA_AUTH_USER_GROUP": "gitea-user",
+    "GITEA_AUTH_ADMIN_GROUP": "gitea-admin",
+    "GITEA_AUTH_USER_SEARCH_BASE": "",
+    "GITEA_AUTH_NESTED_GROUPS": "false",
+}
+
+
+def parse_bool(value):
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def read_env(path):
     try:
         return agent.read_envfile(path)
@@ -50,6 +65,7 @@ gitea.update(
         "GITEA__service__DISABLE_REGISTRATION": "true",
         "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
         "GITEA__repository__DEFAULT_PRIVATE": "private",
+        "GITEA__security__INSTALL_LOCK": "true",
     }
 )
 
@@ -76,6 +92,21 @@ if database.get("GITEA__database__HOST", "") in ("", "postgresql-app:5432"):
 if database or os.path.exists("gitea-db.env"):
     agent.write_envfile("gitea-db.env", database)
     os.chmod("gitea-db.env", 0o600)
+
+auth = dict(AUTH_DEFAULTS)
+auth.update(read_env("gitea-auth.env"))
+agent.write_envfile("gitea-auth.env", auth)
+os.chmod("gitea-auth.env", 0o600)
+
+# Updates must not fail only because the cluster API is temporarily
+# unavailable. The configure action performs the same binding strictly.
+auth_domain = auth.get("GITEA_AUTH_DOMAIN", "").strip()
+agent.bind_user_domains(
+    [auth_domain]
+    if parse_bool(auth.get("GITEA_AUTH_ENABLED")) and auth_domain
+    else [],
+    check=False,
+)
 
 # Keep an empty fallback if discovery cannot reach Redis during startup.
 with open("smarthost.env", "a", encoding="utf-8"):

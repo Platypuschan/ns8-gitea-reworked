@@ -29,7 +29,22 @@
     "host_pattern": "Es muss ein gültiger vollständig qualifizierter Domainname sein",
     "host_format": "Es muss ein gültiger vollständig qualifizierter Domainname sein",
     "ssh_port": "Git-SSH-TCP-Port",
-    "ssh_port_help": "NS8 weist diesen externen Port automatisch zu. Verwende die von Gitea angezeigte SSH-Clone-Adresse; der Container selbst hört weiterhin auf Port 22."
+    "ssh_port_help": "NS8 weist diesen externen Port automatisch zu. Verwende die von Gitea angezeigte SSH-Clone-Adresse; der Container selbst hört weiterhin auf Port 22.",
+    "ad_title": "Active-Directory-Anmeldung",
+    "ad_description": "Gitea richtet die Anmeldung automatisch über eine in NS8 konfigurierte Active-Directory-Domäne ein.",
+    "ad_enabled": "Active-Directory-Anmeldung verwenden",
+    "ad_domain": "NS8-Active-Directory-Domäne",
+    "ad_domain_placeholder": "Active-Directory-Domäne auswählen",
+    "ad_user_group": "Zugelassene AD-Gruppe",
+    "ad_user_group_help": "Nur Mitglieder dieser Gruppe dürfen sich anmelden. Vorgabe: gitea-user.",
+    "ad_admin_group": "AD-Gruppe für Gitea-Administratoren",
+    "ad_admin_group_help": "Mitglieder erhalten Administratorrechte, müssen aber zusätzlich Mitglied der zugelassenen Gruppe sein. Vorgabe: gitea-admin.",
+    "ad_user_search_base": "Basis für Benutzersuche (optional)",
+    "ad_user_search_base_placeholder": "CN=Users,DC=ad,DC=example,DC=org",
+    "ad_user_search_base_help": "Leer lassen, um automatisch CN=Users plus Basis-DN der ausgewählten Domäne zu verwenden.",
+    "ad_nested_groups": "Verschachtelte AD-Gruppen berücksichtigen",
+    "ad_nested_groups_help": "Aktivieren, wenn indirekte Mitgliedschaften in gitea-user oder gitea-admin gelten sollen.",
+    "ad_groups_must_differ": "Zugangs- und Administratorgruppe müssen unterschiedlich sein"
   },
   "common": {
     "required": "erforderlich",
@@ -67,6 +82,7 @@
     "get-status": "Status abfragen",
     "configure-module": "Modul konfigurieren",
     "get-configuration": "Konfiguration abrufen",
+    "list-user-domains": "Benutzerdomänen abrufen",
     "get-name": "Name abrufen"
   },
   "task": {
