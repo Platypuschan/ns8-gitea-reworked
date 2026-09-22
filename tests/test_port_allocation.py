@@ -18,6 +18,10 @@ CREATE_SCRIPT = ROOT / "imageroot/actions/create-module/10configure_environment_
 CONFIGURE_SCRIPT = ROOT / "imageroot/actions/configure-module/10configure_environment_vars"
 MIGRATION_SCRIPT = ROOT / "imageroot/bin/migrate-environment"
 RESTORE_SCRIPT = ROOT / "imageroot/actions/restore-module/40restore_database"
+RESTORE_RECONCILE_SCRIPT = (
+    ROOT / "imageroot/actions/restore-module/90reconcile_auth"
+)
+UPDATE_RECONCILE_SCRIPT = ROOT / "imageroot/update-module.d/30reconcile_auth"
 BUILD_SCRIPT = ROOT / "build-images.sh"
 
 
@@ -277,6 +281,13 @@ class PortAllocationTests(unittest.TestCase):
 
 
 class BackupRestoreTests(unittest.TestCase):
+    def test_update_and_restore_wait_for_authentication_reconciliation(self):
+        for script in (UPDATE_RECONCILE_SCRIPT, RESTORE_RECONCILE_SCRIPT):
+            with self.subTest(script=script):
+                source = script.read_text(encoding="utf-8")
+                self.assertIn("set -Eeuo pipefail", source)
+                self.assertRegex(source, r"(?m)^reconcile-gitea-auth$")
+
     def test_postgres_user_can_read_restore_init_script(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory)

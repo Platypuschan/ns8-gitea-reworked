@@ -1,0 +1,16 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+set -Eeuo pipefail
+exec 1>&2
+
+# gitea.service can report its pod as started before the bound application
+# unit has finished ExecStartPost. Reconcile synchronously as an update step so
+# callers only receive success after the recovery account and managed AD source
+# have reached their intended state. The reconciler lock safely serializes this
+# call with the best-effort startup reconciliation.
+reconcile-gitea-auth
