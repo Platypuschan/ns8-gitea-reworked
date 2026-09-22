@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+set -Eeuo pipefail
+exec 1>&2
+
+# Do not complete a restore while authentication reconciliation is still
+# running asynchronously from gitea-app.service.
+reconcile-gitea-auth
