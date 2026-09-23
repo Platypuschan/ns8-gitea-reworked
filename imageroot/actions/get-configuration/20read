@@ -22,12 +22,21 @@ AUTH_DEFAULTS = {
     "GITEA_AUTH_NESTED_GROUPS": "false",
 }
 
+SETUP_MODES = {"pending", "manual", "managed"}
+
 
 def parse_bool(value):
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 ssh_port = os.environ.get("SSH_TCP_PORT", "")
+try:
+    setup_environment = agent.read_envfile("gitea-setup.env")
+    setup_mode = setup_environment.get("GITEA_SETUP_MODE", "").strip().lower()
+except FileNotFoundError:
+    setup_mode = "managed"
+agent.assert_exp(setup_mode in SETUP_MODES, "The stored Gitea setup mode is invalid.")
+
 try:
     auth_environment = agent.read_envfile("gitea-auth.env")
 except FileNotFoundError:
@@ -39,6 +48,7 @@ configuration = {
     "http2https": os.environ.get("TRAEFIK_HTTP2HTTPS") == "True",
     "lets_encrypt": os.environ.get("TRAEFIK_LETS_ENCRYPT") == "True",
     "ssh_port": int(ssh_port) if ssh_port.isdigit() else 0,
+    "setup_mode": setup_mode,
     "ad_enabled": parse_bool(auth["GITEA_AUTH_ENABLED"]),
     "ad_domain": auth["GITEA_AUTH_DOMAIN"].strip(),
     "ad_user_group": auth["GITEA_AUTH_USER_GROUP"].strip(),

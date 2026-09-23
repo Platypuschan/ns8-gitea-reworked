@@ -10,8 +10,8 @@ The module provides:
 - Git over SSH on a second, dynamically allocated NS8 TCP port
 - PostgreSQL 15 with persistent application and database volumes
 - integration with the NS8 smarthost and backup framework
-- private-by-default access settings
-- automatic first-time initialization without Gitea's web installer
+- a one-time choice between Gitea's web installer and NS8-managed setup
+- private-by-default access settings in managed setup mode
 - optional, managed Active Directory login through an NS8 account domain
 
 ## Runtime versions
@@ -49,7 +49,8 @@ api-cli run module/gitea-reworked1/configure-module --data - <<'EOF'
 {
   "host": "gitea.example.test",
   "http2https": true,
-  "lets_encrypt": false
+  "lets_encrypt": false,
+  "setup_mode": "managed"
 }
 EOF
 ```
@@ -58,17 +59,50 @@ Use a resolvable fully qualified hostname. Enable Let's Encrypt only when the
 hostname and challenge endpoint are publicly reachable as required by your
 certificate setup.
 
-Gitea's database and installation lock are initialized automatically. The web
-installer is deliberately unavailable, so a partially configured instance
-cannot be claimed from the network. A local `ns8-recovery-admin` account is
-also created with an unknown random password; see [Recovery administrator](#recovery-administrator)
-before relying on it.
+The first successful configuration permanently selects one of two setup modes.
+The mode cannot be switched later because reopening an initialized instance's
+web installer or changing ownership of authentication settings is unsafe. To
+choose another mode, install a new instance and migrate the repositories.
 
-The managed defaults are suitable for a private service:
+### Managed setup
+
+Select `managed` for an unattended, private-by-default installation. NS8 locks
+Gitea's web installer, initializes the database, and creates a local
+`ns8-recovery-admin` with an unknown random password. See
+[Recovery administrator](#recovery-administrator) before relying on it.
+
+The managed defaults are:
 
 - anonymous users must sign in
 - self-registration is disabled
 - newly created repositories default to private
+
+Active Directory login remains optional in this mode. If it is disabled,
+accounts can still be created and managed with Gitea's administration tools.
+
+### Manual setup with Gitea's web installer
+
+Select `manual` to use Gitea's normal first-run web installer:
+
+```bash
+api-cli run module/gitea-reworked1/configure-module --data - <<'EOF'
+{
+  "host": "gitea.example.test",
+  "http2https": true,
+  "lets_encrypt": false,
+  "setup_mode": "manual",
+  "ad_enabled": false
+}
+EOF
+```
+
+Open the configured Gitea URL immediately and complete the installer. Until it
+is completed, anyone with network access can create the first administrator
+account. NS8 continues to own the PostgreSQL connection, HTTPS route, SSH port,
+smarthost, and backups; do not replace the module-provided database settings.
+Gitea owns user creation, authentication sources, and application security
+settings in this mode. The module does not create the recovery administrator
+and does not manage an Active Directory source.
 
 ## Active Directory login
 
@@ -82,6 +116,7 @@ api-cli run module/gitea-reworked1/configure-module --data - <<'EOF'
   "host": "gitea.own-hub.de",
   "http2https": true,
   "lets_encrypt": false,
+  "setup_mode": "managed",
   "ad_enabled": true,
   "ad_domain": "ad.own-hub.de",
   "ad_user_group": "gitea-user",
@@ -155,6 +190,7 @@ Example output:
   "http2https": true,
   "lets_encrypt": false,
   "ssh_port": 20042,
+  "setup_mode": "managed",
   "ad_enabled": true,
   "ad_domain": "ad.own-hub.de",
   "ad_user_group": "gitea-user",
@@ -195,6 +231,7 @@ migration is automatic:
 - one additional NS8 TCP port is allocated for Git SSH
 - the SSH port is opened in the node firewall
 - the canonical public Gitea URL and smarthost variables are corrected
+- existing instances are assigned managed setup mode for compatibility
 - the web installer is locked and a recovery administrator is ensured
 - existing managed AD settings are preserved and reconciled
 - existing PostgreSQL data remains on major version 15
