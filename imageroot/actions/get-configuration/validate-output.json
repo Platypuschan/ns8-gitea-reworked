@@ -9,6 +9,7 @@
       "http2https": true,
       "lets_encrypt": true,
       "ssh_port": 20001,
+      "setup_mode": "managed",
       "ad_enabled": true,
       "ad_domain": "ad.domain.org",
       "ad_user_group": "gitea-user",
@@ -23,6 +24,7 @@
     "http2https",
     "lets_encrypt",
     "ssh_port",
+    "setup_mode",
     "ad_enabled",
     "ad_domain",
     "ad_user_group",
@@ -52,6 +54,11 @@
       "description": "Externally allocated NS8 TCP port forwarded to Gitea SSH.",
       "minimum": 0,
       "maximum": 65535
+    },
+    "setup_mode": {
+      "type": "string",
+      "title": "Initial setup mode",
+      "enum": ["pending", "manual", "managed"]
     },
     "ad_enabled": {
       "type": "boolean",

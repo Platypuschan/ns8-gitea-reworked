@@ -49,3 +49,12 @@ agent.write_envfile(
     },
 )
 os.chmod("gitea-db.env", 0o600)
+
+# The first UI configuration requires a one-time choice between Gitea's
+# interactive installer and the NS8-managed setup. Older module versions do
+# not have this file and are migrated to managed mode.
+agent.write_envfile(
+    "gitea-setup.env",
+    {"GITEA_SETUP_MODE": "pending"},
+)
+os.chmod("gitea-setup.env", 0o600)

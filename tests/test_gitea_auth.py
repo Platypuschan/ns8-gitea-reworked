@@ -141,5 +141,23 @@ class RecoveryAccountTests(unittest.TestCase):
                 gitea_auth.ensure_recovery_admin()
 
 
+class SetupModeTests(unittest.TestCase):
+    def test_manual_and_pending_modes_skip_all_managed_reconciliation(self):
+        for mode in ("manual", "pending"):
+            with (
+                self.subTest(mode=mode),
+                mock.patch.object(
+                    gitea_auth, "read_setup_mode", return_value=mode
+                ),
+                mock.patch.object(gitea_auth, "read_auth_config") as read_auth,
+                mock.patch.object(gitea_auth, "wait_for_gitea") as wait,
+                mock.patch.object(gitea_auth, "ensure_recovery_admin") as recovery,
+            ):
+                gitea_auth.reconcile()
+                read_auth.assert_not_called()
+                wait.assert_not_called()
+                recovery.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
