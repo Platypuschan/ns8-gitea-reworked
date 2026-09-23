@@ -22,6 +22,15 @@ AUTH_DEFAULTS = {
     "GITEA_AUTH_NESTED_GROUPS": "false",
 }
 
+SETUP_ENV_FILE = "gitea-setup.env"
+SETUP_MODES = {"manual", "managed"}
+MANAGED_POLICY_KEYS = {
+    "GITEA__service__DISABLE_REGISTRATION",
+    "GITEA__service__REQUIRE_SIGNIN_VIEW",
+    "GITEA__repository__DEFAULT_PRIVATE",
+    "GITEA__security__INSTALL_LOCK",
+}
+
 
 def parse_bool(value):
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
@@ -30,6 +39,35 @@ def parse_bool(value):
 data = json.load(sys.stdin)
 host = data["host"].strip().rstrip(".")
 ssh_port = os.environ["SSH_TCP_PORT"]
+
+try:
+    setup = agent.read_envfile(SETUP_ENV_FILE)
+    current_setup_mode = setup.get("GITEA_SETUP_MODE", "").strip().lower()
+except FileNotFoundError:
+    # A missing marker identifies an instance created by an older release.
+    # Preserve the behavior that release already applied.
+    current_setup_mode = "managed"
+
+agent.assert_exp(
+    current_setup_mode in SETUP_MODES | {"pending"},
+    "The stored Gitea setup mode is invalid.",
+)
+requested_setup_mode = str(data.get("setup_mode", "")).strip().lower()
+if not requested_setup_mode:
+    # Keep older API clients working. On their first request, retain the
+    # automatic setup behavior that predates the explicit mode selector.
+    requested_setup_mode = (
+        "managed" if current_setup_mode == "pending" else current_setup_mode
+    )
+agent.assert_exp(
+    requested_setup_mode in SETUP_MODES,
+    "Choose either the manual or managed Gitea setup mode.",
+)
+agent.assert_exp(
+    current_setup_mode in {"pending", requested_setup_mode},
+    "The Gitea setup mode is fixed after the first configuration.",
+)
+setup_mode = requested_setup_mode
 
 try:
     gitea = agent.read_envfile("gitea.env")
@@ -52,17 +90,26 @@ gitea.update(
         "GITEA__server__SSH_DOMAIN": host,
         # The container listens on 22; this is the externally allocated NS8 port.
         "GITEA__server__SSH_PORT": ssh_port,
-        # Private-by-default policy for the intended local repository service.
-        "GITEA__service__DISABLE_REGISTRATION": "true",
-        "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
-        "GITEA__repository__DEFAULT_PRIVATE": "private",
-        # Skip the interactive installer. Database migrations and all initial
-        # security settings are applied automatically by Gitea and this module.
-        "GITEA__security__INSTALL_LOCK": "true",
     }
 )
-agent.write_envfile("gitea.env", gitea)
-os.chmod("gitea.env", 0o600)
+if setup_mode == "managed":
+    gitea.update(
+        {
+            # Private-by-default policy for the intended local repository service.
+            "GITEA__service__DISABLE_REGISTRATION": "true",
+            "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
+            "GITEA__repository__DEFAULT_PRIVATE": "private",
+            # Skip the interactive installer. Database migrations and all initial
+            # security settings are applied automatically by Gitea and this module.
+            "GITEA__security__INSTALL_LOCK": "true",
+        }
+    )
+else:
+    # Do not set INSTALL_LOCK=false as an environment override: after the web
+    # installer sets it to true, such an override could reopen the installer on
+    # a later container start. Gitea owns these values in manual mode.
+    for key in MANAGED_POLICY_KEYS:
+        gitea.pop(key, None)
 
 try:
     auth = agent.read_envfile("gitea-auth.env")
@@ -79,7 +126,13 @@ auth_fields = {
     "ad_user_search_base",
     "ad_nested_groups",
 }
-if auth_fields.intersection(data):
+if setup_mode == "manual":
+    agent.assert_exp(
+        not bool(data.get("ad_enabled", False)),
+        "Managed Active Directory login requires managed setup mode.",
+    )
+    auth = dict(AUTH_DEFAULTS)
+elif auth_fields.intersection(data):
     enabled = bool(data.get("ad_enabled", False))
     domain = str(data.get("ad_domain", "")).strip()
     user_group = str(data.get("ad_user_group", "gitea-user")).strip()
@@ -114,9 +167,15 @@ if auth_fields.intersection(data):
 else:
     auth = AUTH_DEFAULTS | auth
 
-agent.write_envfile("gitea-auth.env", auth)
-os.chmod("gitea-auth.env", 0o600)
-
-enabled = parse_bool(auth.get("GITEA_AUTH_ENABLED"))
+enabled = setup_mode == "managed" and parse_bool(auth.get("GITEA_AUTH_ENABLED"))
 domain = auth.get("GITEA_AUTH_DOMAIN", "").strip()
 agent.bind_user_domains([domain] if enabled and domain else [], check=True)
+
+# Persist the one-time choice only after validation and the strict cluster
+# domain binding have succeeded. A rejected first request must remain retryable.
+agent.write_envfile(SETUP_ENV_FILE, {"GITEA_SETUP_MODE": setup_mode})
+os.chmod(SETUP_ENV_FILE, 0o600)
+agent.write_envfile("gitea.env", gitea)
+os.chmod("gitea.env", 0o600)
+agent.write_envfile("gitea-auth.env", auth)
+os.chmod("gitea-auth.env", 0o600)

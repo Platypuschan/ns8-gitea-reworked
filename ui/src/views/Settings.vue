@@ -61,7 +61,64 @@
                 $t("settings.enabled")
               }}</template>
             </cv-toggle>
-            <div class="ad-settings">
+            <div class="setup-settings">
+              <h3>{{ $t("settings.setup_title") }}</h3>
+              <p class="section-description">
+                {{ $t("settings.setup_description") }}
+              </p>
+              <template v-if="setupModeState === 'pending'">
+                <label class="bx--label">
+                  {{ $t("settings.setup_choice") }}
+                </label>
+                <cv-radio-group vertical>
+                  <cv-radio-button
+                    v-model="setupMode"
+                    value="managed"
+                    :label="$t('settings.setup_managed')"
+                    :disabled="
+                      loading.getConfiguration || loading.configureModule
+                    "
+                    ref="setup_mode"
+                  ></cv-radio-button>
+                  <p class="setup-help">
+                    {{ $t("settings.setup_managed_help") }}
+                  </p>
+                  <cv-radio-button
+                    v-model="setupMode"
+                    value="manual"
+                    :label="$t('settings.setup_manual')"
+                    :disabled="
+                      loading.getConfiguration || loading.configureModule
+                    "
+                  ></cv-radio-button>
+                  <p class="setup-help">
+                    {{ $t("settings.setup_manual_help") }}
+                  </p>
+                </cv-radio-group>
+                <p v-if="error.setup_mode" class="setup-error">
+                  {{ $t(error.setup_mode) }}
+                </p>
+              </template>
+              <template v-else>
+                <p>
+                  <strong>{{ $t(`settings.setup_${setupMode}`) }}</strong>
+                </p>
+                <p class="setup-help setup-help-locked">
+                  {{ $t(`settings.setup_${setupMode}_help`) }}
+                </p>
+                <p class="field-help setup-locked">
+                  {{ $t("settings.setup_mode_locked") }}
+                </p>
+              </template>
+              <NsInlineNotification
+                v-if="setupMode === 'manual'"
+                kind="warning"
+                :title="$t('settings.setup_manual_warning_title')"
+                :description="$t('settings.setup_manual_warning')"
+                :showCloseButton="false"
+              />
+            </div>
+            <div v-if="setupMode === 'managed'" class="ad-settings">
               <h3>{{ $t("settings.ad_title") }}</h3>
               <p class="section-description">
                 {{ $t("settings.ad_description") }}
@@ -239,6 +296,8 @@ export default {
       urlCheckInterval: null,
       host: "",
       sshPort: 0,
+      setupMode: "",
+      setupModeState: "pending",
       isLetsEncryptEnabled: false,
       isHttpToHttpsEnabled: true,
       isAdEnabled: false,
@@ -257,6 +316,7 @@ export default {
         getConfiguration: "",
         configureModule: "",
         host: "",
+        setup_mode: "",
         lets_encrypt: "",
         http2https: "",
         listUserDomains: "",
@@ -272,7 +332,6 @@ export default {
   },
   created() {
     this.getConfiguration();
-    this.listUserDomains();
   },
   beforeRouteEnter(to, from, next) {
     next((vm) => {
@@ -331,6 +390,8 @@ export default {
       const config = taskResult.output;
       this.host = config.host;
       this.sshPort = config.ssh_port;
+      this.setupModeState = config.setup_mode;
+      this.setupMode = config.setup_mode === "pending" ? "" : config.setup_mode;
       this.isLetsEncryptEnabled = config.lets_encrypt;
       this.isHttpToHttpsEnabled = config.http2https;
       this.isAdEnabled = config.ad_enabled;
@@ -341,6 +402,9 @@ export default {
       this.adNestedGroups = config.ad_nested_groups;
 
       this.loading.getConfiguration = false;
+      if (config.setup_mode !== "manual" && !this.adDomains.length) {
+        this.listUserDomains();
+      }
       this.focusElement("host");
     },
     validateConfigureModule() {
@@ -355,21 +419,29 @@ export default {
         }
         isValidationOk = false;
       }
-      if (this.isAdEnabled && !this.adDomain) {
+      if (!this.setupMode) {
+        this.error.setup_mode = "common.required";
+        if (isValidationOk) {
+          this.focusElement("setup_mode");
+        }
+        isValidationOk = false;
+      }
+      const validateAd = this.setupMode === "managed" && this.isAdEnabled;
+      if (validateAd && !this.adDomain) {
         this.error.ad_domain = "common.required";
         if (isValidationOk) {
           this.focusElement("ad_domain");
         }
         isValidationOk = false;
       }
-      if (this.isAdEnabled && !this.adUserGroup) {
+      if (validateAd && !this.adUserGroup) {
         this.error.ad_user_group = "common.required";
         if (isValidationOk) {
           this.focusElement("ad_user_group");
         }
         isValidationOk = false;
       }
-      if (this.isAdEnabled && !this.adAdminGroup) {
+      if (validateAd && !this.adAdminGroup) {
         this.error.ad_admin_group = "common.required";
         if (isValidationOk) {
           this.focusElement("ad_admin_group");
@@ -377,7 +449,7 @@ export default {
         isValidationOk = false;
       }
       if (
-        this.isAdEnabled &&
+        validateAd &&
         this.adUserGroup &&
         this.adAdminGroup &&
         this.adUserGroup.toLocaleLowerCase() ===
@@ -440,7 +512,8 @@ export default {
             host: this.host,
             lets_encrypt: this.isLetsEncryptEnabled,
             http2https: this.isHttpToHttpsEnabled,
-            ad_enabled: this.isAdEnabled,
+            setup_mode: this.setupMode,
+            ad_enabled: this.setupMode === "managed" && this.isAdEnabled,
             ad_domain: this.adDomain,
             ad_user_group: this.adUserGroup,
             ad_admin_group: this.adAdminGroup,
@@ -541,11 +614,32 @@ export default {
   margin-bottom: $spacing-03;
 }
 
+.setup-settings,
 .ad-settings {
   max-width: 38rem;
   margin: $spacing-07 0;
   padding-top: $spacing-05;
   border-top: 1px solid $ui-03;
+}
+
+.setup-help {
+  max-width: 38rem;
+  margin: -$spacing-02 0 $spacing-05 $spacing-07;
+  color: $text-02;
+}
+
+.setup-help-locked {
+  margin: $spacing-02 0 $spacing-06;
+}
+
+.setup-locked {
+  margin-top: 0;
+}
+
+.setup-error {
+  margin-top: -$spacing-03;
+  color: $support-01;
+  font-size: 0.75rem;
 }
 
 .section-description {

@@ -109,6 +109,14 @@ class PortAllocationTests(unittest.TestCase):
                 stat.S_IMODE((state / "gitea-db.env").stat().st_mode),
                 0o600,
             )
+            self.assertEqual(
+                agent.files["gitea-setup.env"],
+                {"GITEA_SETUP_MODE": "pending"},
+            )
+            self.assertEqual(
+                stat.S_IMODE((state / "gitea-setup.env").stat().st_mode),
+                0o600,
+            )
 
     def test_legacy_instance_gets_one_additional_ssh_port(self):
         agent = FakeAgent()
@@ -162,6 +170,14 @@ class PortAllocationTests(unittest.TestCase):
             )
             self.assertEqual(gitea["GITEA__security__INSTALL_LOCK"], "true")
             self.assertEqual(
+                agent.files["gitea-setup.env"],
+                {"GITEA_SETUP_MODE": "managed"},
+            )
+            self.assertEqual(
+                stat.S_IMODE((state / "gitea-setup.env").stat().st_mode),
+                0o600,
+            )
+            self.assertEqual(
                 agent.files["gitea-db.env"]["GITEA__database__HOST"],
                 "127.0.0.1:5432",
             )
@@ -207,6 +223,7 @@ class PortAllocationTests(unittest.TestCase):
             "host": "git.own-hub.de",
             "http2https": True,
             "lets_encrypt": False,
+            "setup_mode": "managed",
             "ad_enabled": True,
             "ad_domain": "ad.own-hub.de",
             "ad_user_group": "gitea-user",
@@ -221,6 +238,10 @@ class PortAllocationTests(unittest.TestCase):
             self.assertEqual(
                 agent.files["gitea.env"]["GITEA__security__INSTALL_LOCK"],
                 "true",
+            )
+            self.assertEqual(
+                agent.files["gitea-setup.env"],
+                {"GITEA_SETUP_MODE": "managed"},
             )
             self.assertEqual(
                 agent.files["gitea-auth.env"],
@@ -271,13 +292,166 @@ class PortAllocationTests(unittest.TestCase):
             agent.files["gitea-auth.env"]["GITEA_AUTH_NESTED_GROUPS"],
             "true",
         )
+        self.assertEqual(
+            agent.files["gitea-setup.env"],
+            {"GITEA_SETUP_MODE": "managed"},
+        )
         self.assertEqual(agent.bound_domains, [(["ad.own-hub.de"], True)])
+
+    def test_manual_setup_leaves_installer_and_authentication_unmanaged(self):
+        agent = FakeAgent()
+        agent.files = {
+            "gitea-setup.env": {"GITEA_SETUP_MODE": "pending"},
+            "gitea.env": {
+                "GITEA__service__DISABLE_REGISTRATION": "true",
+                "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
+                "GITEA__repository__DEFAULT_PRIVATE": "private",
+                "GITEA__security__INSTALL_LOCK": "true",
+            },
+        }
+        request = {
+            "host": "git.example.test",
+            "http2https": True,
+            "lets_encrypt": False,
+            "setup_mode": "manual",
+            "ad_enabled": False,
+        }
+
+        with isolated_state(
+            agent,
+            {"SSH_TCP_PORT": "25000"},
+            json.dumps(request),
+        ) as state:
+            runpy.run_path(str(CONFIGURE_SCRIPT), run_name="__main__")
+
+            self.assertEqual(
+                agent.files["gitea-setup.env"],
+                {"GITEA_SETUP_MODE": "manual"},
+            )
+            for key in (
+                "GITEA__service__DISABLE_REGISTRATION",
+                "GITEA__service__REQUIRE_SIGNIN_VIEW",
+                "GITEA__repository__DEFAULT_PRIVATE",
+                "GITEA__security__INSTALL_LOCK",
+            ):
+                self.assertNotIn(key, agent.files["gitea.env"])
+            self.assertEqual(
+                agent.files["gitea-auth.env"],
+                {
+                    "GITEA_AUTH_ENABLED": "false",
+                    "GITEA_AUTH_SOURCE_MANAGED": "false",
+                    "GITEA_AUTH_DOMAIN": "",
+                    "GITEA_AUTH_USER_GROUP": "gitea-user",
+                    "GITEA_AUTH_ADMIN_GROUP": "gitea-admin",
+                    "GITEA_AUTH_USER_SEARCH_BASE": "",
+                    "GITEA_AUTH_NESTED_GROUPS": "false",
+                },
+            )
+            self.assertEqual(agent.bound_domains, [([], True)])
+            self.assertEqual(
+                stat.S_IMODE((state / "gitea-setup.env").stat().st_mode),
+                0o600,
+            )
+
+    def test_setup_mode_cannot_change_after_first_configuration(self):
+        agent = FakeAgent()
+        agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "manual"}
+        request = {
+            "host": "git.example.test",
+            "http2https": True,
+            "lets_encrypt": False,
+            "setup_mode": "managed",
+        }
+
+        with isolated_state(
+            agent,
+            {"SSH_TCP_PORT": "25000"},
+            json.dumps(request),
+        ):
+            with self.assertRaisesRegex(AssertionError, "fixed"):
+                runpy.run_path(str(CONFIGURE_SCRIPT), run_name="__main__")
+
+        self.assertEqual(
+            agent.files["gitea-setup.env"],
+            {"GITEA_SETUP_MODE": "manual"},
+        )
+
+    def test_rejected_manual_ad_request_does_not_lock_setup_mode(self):
+        agent = FakeAgent()
+        agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "pending"}
+        request = {
+            "host": "git.example.test",
+            "http2https": True,
+            "lets_encrypt": False,
+            "setup_mode": "manual",
+            "ad_enabled": True,
+        }
+
+        with isolated_state(
+            agent,
+            {"SSH_TCP_PORT": "25000"},
+            json.dumps(request),
+        ):
+            with self.assertRaisesRegex(AssertionError, "requires managed"):
+                runpy.run_path(str(CONFIGURE_SCRIPT), run_name="__main__")
+
+        self.assertEqual(
+            agent.files["gitea-setup.env"],
+            {"GITEA_SETUP_MODE": "pending"},
+        )
+        self.assertNotIn("gitea.env", agent.files)
+
+    def test_manual_setup_survives_environment_migration(self):
+        agent = FakeAgent()
+        agent.files = {
+            "gitea-setup.env": {"GITEA_SETUP_MODE": "manual"},
+            "gitea.env": {
+                "GITEA__service__DISABLE_REGISTRATION": "true",
+                "GITEA__service__REQUIRE_SIGNIN_VIEW": "true",
+                "GITEA__repository__DEFAULT_PRIVATE": "private",
+                "GITEA__security__INSTALL_LOCK": "true",
+            },
+            "gitea-auth.env": {
+                "GITEA_AUTH_ENABLED": "true",
+                "GITEA_AUTH_SOURCE_MANAGED": "true",
+                "GITEA_AUTH_DOMAIN": "ad.example.test",
+            },
+        }
+        environment = {
+            "MODULE_ID": "gitea-reworked1",
+            "SSH_TCP_PORT": "25000",
+            "TRAEFIK_HOST": "git.example.test",
+        }
+
+        with isolated_state(agent, environment):
+            runpy.run_path(str(MIGRATION_SCRIPT), run_name="__main__")
+
+        for key in (
+            "GITEA__service__DISABLE_REGISTRATION",
+            "GITEA__service__REQUIRE_SIGNIN_VIEW",
+            "GITEA__repository__DEFAULT_PRIVATE",
+            "GITEA__security__INSTALL_LOCK",
+        ):
+            self.assertNotIn(key, agent.files["gitea.env"])
+        self.assertEqual(
+            agent.files["gitea-setup.env"],
+            {"GITEA_SETUP_MODE": "manual"},
+        )
+        self.assertEqual(
+            agent.files["gitea-auth.env"]["GITEA_AUTH_ENABLED"],
+            "false",
+        )
+        self.assertEqual(agent.bound_domains, [([], False)])
 
     def test_node_roles_are_combined_in_one_authorization(self):
         build_script = BUILD_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("node:fwadm,portsadm", build_script)
         self.assertNotIn("node:fwadm node:portsadm", build_script)
         self.assertIn("cluster:accountconsumer", build_script)
+        state_include = (ROOT / "imageroot/etc/state-include.conf").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("state/gitea-setup.env", state_include)
 
 
 class BackupRestoreTests(unittest.TestCase):

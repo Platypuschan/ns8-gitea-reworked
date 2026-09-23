@@ -8,6 +8,7 @@
             "host": "gitea.domain.org",
             "http2https": true,
             "lets_encrypt": true,
+            "setup_mode": "managed",
             "ad_enabled": true,
             "ad_domain": "ad.domain.org",
             "ad_user_group": "gitea-user",
@@ -38,6 +39,12 @@
             "type": "boolean",
             "title": "HTTP to HTTPS redirection",
             "description": "Redirect all the HTTP requests to HTTPS"
+        },
+        "setup_mode": {
+            "type": "string",
+            "title": "Initial setup mode",
+            "description": "Choose Gitea's web installer or NS8-managed initialization. The choice is immutable after the first successful configuration.",
+            "enum": ["manual", "managed"]
         },
         "ad_enabled": {
             "type": "boolean",
@@ -76,6 +83,19 @@
         }
     },
     "allOf": [
+        {
+            "if": {
+                "required": ["setup_mode"],
+                "properties": {
+                    "setup_mode": {"const": "manual"}
+                }
+            },
+            "then": {
+                "properties": {
+                    "ad_enabled": {"const": false}
+                }
+            }
+        },
         {
             "if": {
                 "required": ["ad_enabled"],
