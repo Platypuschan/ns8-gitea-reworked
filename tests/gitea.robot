@@ -55,7 +55,7 @@ Add module for ${SCENARIO} scenario
     ELSE
         Set Local Variable    ${install_image}    ${IMAGE_URL}
     END
-    ${output}    ${rc} =    Execute Command    add-module ${install_image} 1
+    ${output}    ${rc} =    Execute Command    timeout 180 add-module ${install_image} 1
     ...    return_rc=True
     Should Be Equal As Integers    ${rc}    0
     &{output} =    Evaluate    ast.literal_eval(r'''${output}''')    modules=ast
@@ -123,16 +123,11 @@ Take screenshots
     Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/2._Settings.png
     Close Browser
 
-Remove module
-    ${rc} =    Execute Command    remove-module --no-preserve ${module_id}
-    ...    return_rc=True    return_stdout=False
-    Should Be Equal As Integers    ${rc}    0
-
 Manual setup exposes Gitea web installer
     IF    r'${SCENARIO}' != 'install'
         Skip    Manual first-run setup is covered by the install scenario
     END
-    ${output}    ${rc} =    Execute Command    add-module ${IMAGE_URL} 1
+    ${output}    ${rc} =    Execute Command    timeout 180 add-module ${IMAGE_URL} 1
     ...    return_rc=True
     Should Be Equal As Integers    ${rc}    0
     &{output} =    Evaluate    ast.literal_eval(r'''${output}''')    modules=ast
@@ -153,5 +148,10 @@ Manual setup exposes Gitea web installer
     ...    return_rc=True
     Should Not Be Equal As Integers    ${override_rc}    0    Manual setup must not override INSTALL_LOCK: ${override}
     ${rc} =    Execute Command    remove-module --no-preserve ${manual_module_id}
+    ...    return_rc=True    return_stdout=False
+    Should Be Equal As Integers    ${rc}    0
+
+Remove module
+    ${rc} =    Execute Command    remove-module --no-preserve ${module_id}
     ...    return_rc=True    return_stdout=False
     Should Be Equal As Integers    ${rc}    0
