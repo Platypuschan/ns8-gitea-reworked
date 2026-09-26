@@ -41,6 +41,7 @@ buildah add "${container}" imageroot /imageroot
 buildah add "${container}" ui/dist /ui
 
 buildah config --entrypoint=/ \
+    --label="org.opencontainers.image.source=https://github.com/Platypuschan/ns8-gitea-reworked" \
     --label="org.nethserver.authorizations=traefik@node:routeadm node:fwadm,portsadm cluster:accountconsumer" \
     --label="org.nethserver.tcp-ports-demand=2" \
     --label="org.nethserver.rootfull=0" \
