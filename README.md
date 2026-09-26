@@ -107,21 +107,20 @@ and does not manage an Active Directory source.
 ## Active Directory login
 
 The Settings page can create and maintain one Gitea LDAP authentication source
-from an Active Directory account domain already configured in NS8. For the
-`ad.own-hub.de` domain and the requested groups, the equivalent API call is:
+from an Active Directory account domain already configured in NS8. For an example Active Directory domain, the equivalent API call is:
 
 ```bash
 api-cli run module/gitea-reworked1/configure-module --data - <<'EOF'
 {
-  "host": "gitea.own-hub.de",
+  "host": "gitea.example.test",
   "http2https": true,
   "lets_encrypt": false,
   "setup_mode": "managed",
   "ad_enabled": true,
-  "ad_domain": "ad.own-hub.de",
+  "ad_domain": "ad.example.test",
   "ad_user_group": "gitea-user",
   "ad_admin_group": "gitea-admin",
-  "ad_user_search_base": "CN=Users,DC=ad,DC=own-hub,DC=de",
+  "ad_user_search_base": "CN=Users,DC=ad,DC=example,DC=test",
   "ad_nested_groups": false
 }
 EOF
@@ -193,10 +192,10 @@ Example output:
   "ssh_port": 20042,
   "setup_mode": "managed",
   "ad_enabled": true,
-  "ad_domain": "ad.own-hub.de",
+  "ad_domain": "ad.example.test",
   "ad_user_group": "gitea-user",
   "ad_admin_group": "gitea-admin",
-  "ad_user_search_base": "CN=Users,DC=ad,DC=own-hub,DC=de",
+  "ad_user_search_base": "CN=Users,DC=ad,DC=example,DC=test",
   "ad_nested_groups": false
 }
 ```

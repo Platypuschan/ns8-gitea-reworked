@@ -21,25 +21,25 @@ class FilterTests(unittest.TestCase):
     def test_direct_group_filters_enforce_access_and_admin_groups(self):
         hidden = "(!(|(sAMAccountName=Guest)(sAMAccountName=krbtgt)))"
         user_filter = gitea_auth.build_user_filter(
-            "CN=gitea-user,CN=Users,DC=ad,DC=own-hub,DC=de",
+            "CN=gitea-user,CN=Users,DC=ad,DC=example,DC=test",
             nested=False,
             hidden_users_clause=hidden,
         )
         admin_filter = gitea_auth.build_admin_filter(
-            "CN=gitea-admin,CN=Users,DC=ad,DC=own-hub,DC=de",
+            "CN=gitea-admin,CN=Users,DC=ad,DC=example,DC=test",
             nested=False,
         )
 
         self.assertIn("(sAMAccountName=%[1]s)", user_filter)
         self.assertIn(
-            "(memberOf=CN=gitea-user,CN=Users,DC=ad,DC=own-hub,DC=de)",
+            "(memberOf=CN=gitea-user,CN=Users,DC=ad,DC=example,DC=test)",
             user_filter,
         )
         self.assertIn("userAccountControl:1.2.840.113556.1.4.803:=2", user_filter)
         self.assertIn(hidden, user_filter)
         self.assertEqual(
             admin_filter,
-            "(memberOf=CN=gitea-admin,CN=Users,DC=ad,DC=own-hub,DC=de)",
+            "(memberOf=CN=gitea-admin,CN=Users,DC=ad,DC=example,DC=test)",
         )
 
     def test_nested_filter_uses_ad_matching_rule_and_escapes_literals(self):

@@ -220,15 +220,15 @@ class PortAllocationTests(unittest.TestCase):
         agent = FakeAgent()
         environment = {"SSH_TCP_PORT": "25000"}
         request = {
-            "host": "git.own-hub.de",
+            "host": "git.example.test",
             "http2https": True,
             "lets_encrypt": False,
             "setup_mode": "managed",
             "ad_enabled": True,
-            "ad_domain": "ad.own-hub.de",
+            "ad_domain": "ad.example.test",
             "ad_user_group": "gitea-user",
             "ad_admin_group": "gitea-admin",
-            "ad_user_search_base": "CN=Users,DC=ad,DC=own-hub,DC=de",
+            "ad_user_search_base": "CN=Users,DC=ad,DC=example,DC=test",
             "ad_nested_groups": False,
         }
 
@@ -248,18 +248,18 @@ class PortAllocationTests(unittest.TestCase):
                 {
                     "GITEA_AUTH_ENABLED": "true",
                     "GITEA_AUTH_SOURCE_MANAGED": "true",
-                    "GITEA_AUTH_DOMAIN": "ad.own-hub.de",
+                    "GITEA_AUTH_DOMAIN": "ad.example.test",
                     "GITEA_AUTH_USER_GROUP": "gitea-user",
                     "GITEA_AUTH_ADMIN_GROUP": "gitea-admin",
                     "GITEA_AUTH_USER_SEARCH_BASE": (
-                        "CN=Users,DC=ad,DC=own-hub,DC=de"
+                        "CN=Users,DC=ad,DC=example,DC=test"
                     ),
                     "GITEA_AUTH_NESTED_GROUPS": "false",
                 },
             )
             self.assertEqual(
                 agent.bound_domains,
-                [(["ad.own-hub.de"], True)],
+                [(["ad.example.test"], True)],
             )
             self.assertEqual(
                 stat.S_IMODE((state / "gitea-auth.env").stat().st_mode),
@@ -271,7 +271,7 @@ class PortAllocationTests(unittest.TestCase):
         agent.files["gitea-auth.env"] = {
             "GITEA_AUTH_ENABLED": "true",
             "GITEA_AUTH_SOURCE_MANAGED": "true",
-            "GITEA_AUTH_DOMAIN": "ad.own-hub.de",
+            "GITEA_AUTH_DOMAIN": "ad.example.test",
             "GITEA_AUTH_USER_GROUP": "gitea-user",
             "GITEA_AUTH_ADMIN_GROUP": "gitea-admin",
             "GITEA_AUTH_USER_SEARCH_BASE": "",
@@ -279,7 +279,7 @@ class PortAllocationTests(unittest.TestCase):
         }
         environment = {"SSH_TCP_PORT": "25000"}
         request = {
-            "host": "git.own-hub.de",
+            "host": "git.example.test",
             "http2https": True,
             "lets_encrypt": False,
         }
@@ -296,7 +296,7 @@ class PortAllocationTests(unittest.TestCase):
             agent.files["gitea-setup.env"],
             {"GITEA_SETUP_MODE": "managed"},
         )
-        self.assertEqual(agent.bound_domains, [(["ad.own-hub.de"], True)])
+        self.assertEqual(agent.bound_domains, [(["ad.example.test"], True)])
 
     def test_manual_setup_leaves_installer_and_authentication_unmanaged(self):
         agent = FakeAgent()
