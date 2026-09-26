@@ -50,7 +50,24 @@
         "ad_user_search_base_help": "Utzi hutsik CN=Users eta domeinuaren oinarrizko DNa erabiltzeko.",
         "ad_nested_groups": "Onartu habiaratutako AD taldeak",
         "ad_nested_groups_help": "Gaitu gitea-user edo gitea-admin taldeetako zeharkako kidetza onartzeko.",
-        "ad_groups_must_differ": "Baimendutako eta administratzaile taldeen izenek desberdinak izan behar dute"
+        "ad_groups_must_differ": "Baimendutako eta administratzaile taldeen izenek desberdinak izan behar dute",
+        "recovery_title": "Berreskuratze-administratzailea",
+        "recovery_description": "Tokiko administratzaile hau Active Directorytik independentea da eta larrialdietako sarbiderako da. Zabaldu atal hau kredentzialak behar dituzunean soilik.",
+        "recovery_username": "Kontuaren izena",
+        "recovery_password": "Pasahitza",
+        "recovery_generate_password": "Sortu pasahitz berria",
+        "recovery_unavailable_title": "Ez dago gordetako pasahitzik",
+        "recovery_unavailable": "Instalazio honek ez du oraindik NS8k kudeatutako berreskuratze-pasahitzik. Sortu berri bat botoiarekin; eskuz ezarritako pasahitz oro ordeztuko da.",
+        "recovery_reset_success": "Berreskuratze-pasahitza eguneratu da",
+        "recovery_reset_success_description": "Behean agertzen diren kredentzialak berehala dira baliozkoak.",
+        "recovery_confirm_title": "Berreskuratze-pasahitza ordeztu?",
+        "recovery_confirm_warning_title": "Uneko pasahitzak funtzionatzeari utziko dio",
+        "recovery_confirm_warning": "Sortu ondoren, berreskuratze-administratzailearen aurreko pasahitza ezin izango da erabili.",
+        "recovery_confirm_description": "NS8k ausazko pasahitz sendo bat sortzen du, ns8-recovery-admin konturako aktibatzen du eta atal honetan erakusten du.",
+        "recovery_confirm_button": "Ordeztu pasahitza",
+        "copy_to_clipboard": "Kopiatu arbelera",
+        "copied_to_clipboard": "Arbelean kopiatuta",
+        "cancel": "Utzi"
     },
     "common": {
         "required": "Beharrezkoa",
@@ -85,7 +102,9 @@
         "configure-module": "Modulua konfiguratu",
         "get-configuration": "Konfigurazioa berreskuratu",
         "get-name": "Izena berreskuratu",
-        "list-user-domains": "Erabiltzaile-domeinuak zerrendatu"
+        "list-user-domains": "Erabiltzaile-domeinuak zerrendatu",
+        "get-recovery-credentials": "Berreskuratze-kredentzialak eskuratu",
+        "reset-recovery-password": "Berreskuratze-pasahitz berria sortu"
     },
     "task": {
         "cannot_create_task": "Ezin da zeregina {action} sortu"

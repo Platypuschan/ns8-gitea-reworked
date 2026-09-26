@@ -9,9 +9,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import ipaddress
 import os
+import secrets
 import subprocess
 import sys
 import time
@@ -23,10 +25,13 @@ from pathlib import Path
 
 AUTH_ENV_FILE = "gitea-auth.env"
 SETUP_ENV_FILE = "gitea-setup.env"
+RECOVERY_ENV_FILE = "gitea-recovery.env"
 LOCK_FILE = ".gitea-auth.lock"
 MANAGED_SOURCE_NAME = "NS8 Active Directory"
 RECOVERY_USERNAME = "ns8-recovery-admin"
 RECOVERY_EMAIL = "ns8-recovery-admin@localhost.invalid"
+RECOVERY_PASSWORD_KEY = "GITEA_RECOVERY_PASSWORD"
+RECOVERY_USERNAME_KEY = "GITEA_RECOVERY_USERNAME"
 CONTAINER_LDAP_HOST = "10.0.2.2"
 LDAP_MATCHING_RULE_IN_CHAIN = "1.2.840.113556.1.4.1941"
 LDAP_BITWISE_AND = "1.2.840.113556.1.4.803"
@@ -114,6 +119,18 @@ def sanitize(message: object, secrets: tuple[str, ...] = ()) -> str:
         if secret:
             sanitized = sanitized.replace(secret, "[redacted]")
     return sanitized
+
+
+@contextlib.contextmanager
+def authentication_lock():
+    """Serialize all operations that modify managed Gitea authentication."""
+
+    lock_path = Path(LOCK_FILE)
+    lock_path.touch(mode=0o600, exist_ok=True)
+    lock_path.chmod(0o600)
+    with lock_path.open("r+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        yield
 
 
 def run_gitea(
@@ -265,7 +282,74 @@ def managed_source(
     return None
 
 
-def ensure_recovery_admin() -> None:
+def read_recovery_credentials() -> dict[str, str] | None:
+    """Read the module-owned recovery credentials, if they exist."""
+
+    import agent
+
+    credentials_path = Path(RECOVERY_ENV_FILE)
+    try:
+        credentials_path.chmod(0o600)
+        values = agent.read_envfile(RECOVERY_ENV_FILE)
+    except FileNotFoundError:
+        return None
+
+    username = values.get(RECOVERY_USERNAME_KEY, "").strip()
+    password = values.get(RECOVERY_PASSWORD_KEY, "")
+    if username != RECOVERY_USERNAME or not 32 <= len(password) <= 128:
+        raise ReconcileError("The stored recovery credentials are invalid.")
+    return {"username": username, "password": password}
+
+
+def generate_recovery_password() -> str:
+    """Return a secure URL-safe password satisfying all Gitea classes."""
+
+    while True:
+        password = secrets.token_urlsafe(36)
+        if (
+            any(character.islower() for character in password)
+            and any(character.isupper() for character in password)
+            and any(character.isdigit() for character in password)
+            and any(character in "-_" for character in password)
+        ):
+            return password
+
+
+def stage_recovery_credentials(password: str) -> Path:
+    """Write new credentials to a protected temporary file."""
+
+    import agent
+
+    if not 32 <= len(password) <= 128:
+        raise ReconcileError("Refusing to store an invalid recovery password.")
+    temporary_path = Path(f"{RECOVERY_ENV_FILE}.tmp")
+    temporary_path.unlink(missing_ok=True)
+    try:
+        # Pre-create the file so the secret is owner-only from its first byte,
+        # rather than relying on the process umask until chmod runs.
+        temporary_path.touch(mode=0o600, exist_ok=False)
+        agent.write_envfile(
+            str(temporary_path),
+            {
+                RECOVERY_USERNAME_KEY: RECOVERY_USERNAME,
+                RECOVERY_PASSWORD_KEY: password,
+            },
+        )
+        temporary_path.chmod(0o600)
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+    return temporary_path
+
+
+def commit_recovery_credentials(temporary_path: Path) -> None:
+    """Atomically publish staged credentials with owner-only permissions."""
+
+    os.replace(temporary_path, RECOVERY_ENV_FILE)
+    Path(RECOVERY_ENV_FILE).chmod(0o600)
+
+
+def recovery_admin_user() -> dict[str, str] | None:
     users = parse_users(run_gitea(["admin", "user", "list"]))
     matches = [
         user
@@ -283,27 +367,77 @@ def ensure_recovery_admin() -> None:
                 f"The reserved recovery user {RECOVERY_USERNAME!r} already exists "
                 "but is not an active administrator; it was not modified."
             )
+        return user
+    return None
+
+
+def ensure_recovery_admin() -> None:
+    if recovery_admin_user() is not None:
         return
 
-    # Gitea prints the generated password. Capture and deliberately discard it:
-    # access is enabled only after an operator performs the documented reset.
-    run_gitea(
-        [
-            "admin",
-            "user",
-            "create",
-            "--username",
-            RECOVERY_USERNAME,
-            "--email",
-            RECOVERY_EMAIL,
-            "--random-password",
-            "--random-password-length",
-            "32",
-            "--admin",
-            "--must-change-password=false",
-        ],
-        redact_stdout=True,
+    credentials = read_recovery_credentials()
+    password = (
+        credentials["password"] if credentials else generate_recovery_password()
     )
+    staged_credentials = None
+    if credentials is None:
+        staged_credentials = stage_recovery_credentials(password)
+
+    try:
+        run_gitea(
+            [
+                "admin",
+                "user",
+                "create",
+                "--username",
+                RECOVERY_USERNAME,
+                "--email",
+                RECOVERY_EMAIL,
+                "--password",
+                password,
+                "--admin",
+                "--must-change-password=false",
+            ],
+            secrets=(password,),
+            redact_stdout=True,
+        )
+        if staged_credentials is not None:
+            commit_recovery_credentials(staged_credentials)
+    finally:
+        if staged_credentials is not None:
+            staged_credentials.unlink(missing_ok=True)
+
+
+def reset_recovery_password() -> None:
+    """Replace and persist the managed recovery administrator password."""
+
+    if read_setup_mode() != "managed":
+        raise ReconcileError(
+            "Recovery credentials are available only in NS8-managed setup mode."
+        )
+
+    wait_for_gitea()
+    ensure_recovery_admin()
+    password = generate_recovery_password()
+    staged_credentials = stage_recovery_credentials(password)
+    try:
+        run_gitea(
+            [
+                "admin",
+                "user",
+                "change-password",
+                "--username",
+                RECOVERY_USERNAME,
+                "--password",
+                password,
+                "--must-change-password=false",
+            ],
+            secrets=(password,),
+            redact_stdout=True,
+        )
+        commit_recovery_credentials(staged_credentials)
+    finally:
+        staged_credentials.unlink(missing_ok=True)
 
 
 def _escape_filter_literal(value: str) -> str:
@@ -614,11 +748,7 @@ def reconcile() -> None:
 
 
 def main() -> int:
-    lock_path = Path(LOCK_FILE)
-    lock_path.touch(mode=0o600, exist_ok=True)
-    lock_path.chmod(0o600)
-    with lock_path.open("r+", encoding="utf-8") as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+    with authentication_lock():
         try:
             reconcile()
         except ReconcileError as exc:

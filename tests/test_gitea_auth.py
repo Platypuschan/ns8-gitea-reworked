@@ -1,5 +1,9 @@
 import importlib.util
+import os
+import stat
 import sys
+import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -139,6 +143,188 @@ class RecoveryAccountTests(unittest.TestCase):
         with mock.patch.object(gitea_auth, "run_gitea", return_value=output):
             with self.assertRaisesRegex(gitea_auth.ReconcileError, "not an active"):
                 gitea_auth.ensure_recovery_admin()
+
+    def test_new_account_uses_generated_password_and_commits_credentials(self):
+        staged = mock.Mock()
+        password = "generated-recovery-password-with-enough-entropy"
+        with (
+            mock.patch.object(gitea_auth, "recovery_admin_user", return_value=None),
+            mock.patch.object(gitea_auth, "read_recovery_credentials", return_value=None),
+            mock.patch.object(
+                gitea_auth, "generate_recovery_password", return_value=password
+            ),
+            mock.patch.object(
+                gitea_auth, "stage_recovery_credentials", return_value=staged
+            ) as stage,
+            mock.patch.object(gitea_auth, "commit_recovery_credentials") as commit,
+            mock.patch.object(gitea_auth, "run_gitea") as run,
+        ):
+            gitea_auth.ensure_recovery_admin()
+
+        stage.assert_called_once_with(password)
+        commit.assert_called_once_with(staged)
+        staged.unlink.assert_called_once_with(missing_ok=True)
+        run.assert_called_once_with(
+            [
+                "admin",
+                "user",
+                "create",
+                "--username",
+                "ns8-recovery-admin",
+                "--email",
+                "ns8-recovery-admin@localhost.invalid",
+                "--password",
+                password,
+                "--admin",
+                "--must-change-password=false",
+            ],
+            secrets=(password,),
+            redact_stdout=True,
+        )
+
+    def test_existing_stored_password_is_used_when_account_must_be_recreated(self):
+        password = "stored-recovery-password-with-enough-entropy"
+        with (
+            mock.patch.object(gitea_auth, "recovery_admin_user", return_value=None),
+            mock.patch.object(
+                gitea_auth,
+                "read_recovery_credentials",
+                return_value={
+                    "username": gitea_auth.RECOVERY_USERNAME,
+                    "password": password,
+                },
+            ),
+            mock.patch.object(gitea_auth, "stage_recovery_credentials") as stage,
+            mock.patch.object(gitea_auth, "run_gitea") as run,
+        ):
+            gitea_auth.ensure_recovery_admin()
+
+        stage.assert_not_called()
+        self.assertEqual(run.call_args.kwargs["secrets"], (password,))
+        self.assertIn(password, run.call_args.args[0])
+
+    def test_reset_rotates_password_and_commits_only_after_gitea_accepts_it(self):
+        staged = mock.Mock()
+        password = "new-recovery-password-with-enough-entropy"
+        with (
+            mock.patch.object(gitea_auth, "read_setup_mode", return_value="managed"),
+            mock.patch.object(gitea_auth, "wait_for_gitea") as wait,
+            mock.patch.object(gitea_auth, "ensure_recovery_admin") as ensure,
+            mock.patch.object(
+                gitea_auth, "generate_recovery_password", return_value=password
+            ),
+            mock.patch.object(
+                gitea_auth, "stage_recovery_credentials", return_value=staged
+            ),
+            mock.patch.object(gitea_auth, "commit_recovery_credentials") as commit,
+            mock.patch.object(gitea_auth, "run_gitea") as run,
+        ):
+            gitea_auth.reset_recovery_password()
+
+        wait.assert_called_once_with()
+        ensure.assert_called_once_with()
+        run.assert_called_once_with(
+            [
+                "admin",
+                "user",
+                "change-password",
+                "--username",
+                "ns8-recovery-admin",
+                "--password",
+                password,
+                "--must-change-password=false",
+            ],
+            secrets=(password,),
+            redact_stdout=True,
+        )
+        commit.assert_called_once_with(staged)
+        staged.unlink.assert_called_once_with(missing_ok=True)
+
+    def test_reset_is_rejected_outside_managed_mode(self):
+        with (
+            mock.patch.object(gitea_auth, "read_setup_mode", return_value="manual"),
+            mock.patch.object(gitea_auth, "wait_for_gitea") as wait,
+            self.assertRaisesRegex(gitea_auth.ReconcileError, "managed setup mode"),
+        ):
+            gitea_auth.reset_recovery_password()
+        wait.assert_not_called()
+
+    def test_failed_reset_does_not_publish_the_new_password(self):
+        staged = mock.Mock()
+        with (
+            mock.patch.object(gitea_auth, "read_setup_mode", return_value="managed"),
+            mock.patch.object(gitea_auth, "wait_for_gitea"),
+            mock.patch.object(gitea_auth, "ensure_recovery_admin"),
+            mock.patch.object(
+                gitea_auth,
+                "generate_recovery_password",
+                return_value="new-recovery-password-with-enough-entropy",
+            ),
+            mock.patch.object(
+                gitea_auth, "stage_recovery_credentials", return_value=staged
+            ),
+            mock.patch.object(
+                gitea_auth,
+                "run_gitea",
+                side_effect=gitea_auth.ReconcileError("command failed"),
+            ),
+            mock.patch.object(gitea_auth, "commit_recovery_credentials") as commit,
+            self.assertRaisesRegex(gitea_auth.ReconcileError, "command failed"),
+        ):
+            gitea_auth.reset_recovery_password()
+
+        commit.assert_not_called()
+        staged.unlink.assert_called_once_with(missing_ok=True)
+
+    def test_credentials_file_is_atomic_and_owner_only(self):
+        class FakeAgent(types.ModuleType):
+            @staticmethod
+            def write_envfile(path, values):
+                Path(path).write_text(
+                    "".join(f"{key}={value}\n" for key, value in values.items()),
+                    encoding="utf-8",
+                )
+
+            @staticmethod
+            def read_envfile(path):
+                values = {}
+                for line in Path(path).read_text(encoding="utf-8").splitlines():
+                    key, value = line.split("=", 1)
+                    values[key] = value
+                return values
+
+        previous_directory = os.getcwd()
+        with tempfile.TemporaryDirectory() as directory:
+            os.chdir(directory)
+            try:
+                with mock.patch.dict(sys.modules, {"agent": FakeAgent("agent")}):
+                    password = "secure-recovery-password-with-enough-entropy"
+                    staged = gitea_auth.stage_recovery_credentials(password)
+                    self.assertEqual(stat.S_IMODE(staged.stat().st_mode), 0o600)
+                    gitea_auth.commit_recovery_credentials(staged)
+                    self.assertEqual(
+                        stat.S_IMODE(Path("gitea-recovery.env").stat().st_mode),
+                        0o600,
+                    )
+                    self.assertEqual(
+                        gitea_auth.read_recovery_credentials(),
+                        {
+                            "username": "ns8-recovery-admin",
+                            "password": password,
+                        },
+                    )
+            finally:
+                os.chdir(previous_directory)
+
+    def test_generated_password_is_high_entropy_and_url_safe(self):
+        first = gitea_auth.generate_recovery_password()
+        second = gitea_auth.generate_recovery_password()
+        self.assertRegex(first, r"^[A-Za-z0-9_-]{48}$")
+        self.assertTrue(any(character.islower() for character in first))
+        self.assertTrue(any(character.isupper() for character in first))
+        self.assertTrue(any(character.isdigit() for character in first))
+        self.assertTrue(any(character in "-_" for character in first))
+        self.assertNotEqual(first, second)
 
 
 class SetupModeTests(unittest.TestCase):

@@ -228,6 +228,107 @@
                 </p>
               </template>
             </div>
+            <cv-accordion
+              v-if="setupModeState === 'managed'"
+              class="maxwidth recovery-settings mg-bottom"
+              @change="recoveryAccordionChanged"
+            >
+              <cv-accordion-item>
+                <template slot="title">
+                  {{ $t("settings.recovery_title") }}
+                </template>
+                <template slot="content">
+                  <p class="section-description recovery-description">
+                    {{ $t("settings.recovery_description") }}
+                  </p>
+                  <cv-skeleton-text
+                    v-if="loading.getRecoveryCredentials"
+                    :paragraph="true"
+                    :line-count="3"
+                  ></cv-skeleton-text>
+                  <template v-else>
+                    <NsInlineNotification
+                      v-if="error.getRecoveryCredentials"
+                      kind="error"
+                      :title="$t('action.get-recovery-credentials')"
+                      :description="error.getRecoveryCredentials"
+                      :showCloseButton="false"
+                      class="mg-bottom"
+                    />
+                    <NsInlineNotification
+                      v-if="recoveryPasswordRotated"
+                      kind="success"
+                      :title="$t('settings.recovery_reset_success')"
+                      :description="
+                        $t('settings.recovery_reset_success_description')
+                      "
+                      :showCloseButton="false"
+                      class="mg-bottom"
+                    />
+                    <template
+                      v-if="
+                        recoveryCredentialsLoaded &&
+                        recoveryCredentialsAvailable
+                      "
+                    >
+                      <div class="credential-field">
+                        <label class="bx--label">
+                          {{ $t("settings.recovery_username") }}
+                        </label>
+                        <NsCodeSnippet
+                          light
+                          hideExpandButton
+                          :copyTooltip="$t('settings.copy_to_clipboard')"
+                          :copy-feedback="$t('settings.copied_to_clipboard')"
+                          :feedback-aria-label="
+                            $t('settings.copied_to_clipboard')
+                          "
+                          >{{ recoveryUsername }}</NsCodeSnippet
+                        >
+                      </div>
+                      <div class="credential-field">
+                        <label class="bx--label">
+                          {{ $t("settings.recovery_password") }}
+                        </label>
+                        <NsCodeSnippet
+                          light
+                          hideExpandButton
+                          :copyTooltip="$t('settings.copy_to_clipboard')"
+                          :copy-feedback="$t('settings.copied_to_clipboard')"
+                          :feedback-aria-label="
+                            $t('settings.copied_to_clipboard')
+                          "
+                          >{{ recoveryPassword }}</NsCodeSnippet
+                        >
+                      </div>
+                    </template>
+                    <NsInlineNotification
+                      v-else-if="
+                        recoveryCredentialsLoaded &&
+                        !recoveryCredentialsAvailable
+                      "
+                      kind="warning"
+                      :title="$t('settings.recovery_unavailable_title')"
+                      :description="$t('settings.recovery_unavailable')"
+                      :showCloseButton="false"
+                      class="mg-bottom"
+                    />
+                    <NsButton
+                      type="button"
+                      kind="secondary"
+                      :icon="Password20"
+                      :disabled="
+                        loading.getRecoveryCredentials ||
+                        loading.resetRecoveryPassword
+                      "
+                      @click="showRecoveryResetModal"
+                    >
+                      {{ $t("settings.recovery_generate_password") }}
+                    </NsButton>
+                  </template>
+                </template>
+              </cv-accordion-item>
+            </cv-accordion>
             <!-- advanced options -->
             <cv-accordion class="maxwidth mg-bottom">
               <cv-accordion-item>
@@ -262,6 +363,45 @@
         </cv-tile>
       </cv-column>
     </cv-row>
+    <NsModal
+      kind="danger"
+      size="default"
+      :visible="isRecoveryResetModalShown"
+      :isLoading="loading.resetRecoveryPassword"
+      :primary-button-disabled="loading.resetRecoveryPassword"
+      :autoHideOff="loading.resetRecoveryPassword"
+      @modal-hidden="closeRecoveryResetModal"
+      @secondary-click="closeRecoveryResetModal"
+      @primary-click="resetRecoveryPassword"
+    >
+      <template slot="title">
+        {{ $t("settings.recovery_confirm_title") }}
+      </template>
+      <template slot="content">
+        <NsInlineNotification
+          kind="warning"
+          :title="$t('settings.recovery_confirm_warning_title')"
+          :description="$t('settings.recovery_confirm_warning')"
+          :showCloseButton="false"
+          class="mg-bottom"
+        />
+        <p>{{ $t("settings.recovery_confirm_description") }}</p>
+        <NsInlineNotification
+          v-if="error.resetRecoveryPassword"
+          kind="error"
+          :title="$t('action.reset-recovery-password')"
+          :description="error.resetRecoveryPassword"
+          :showCloseButton="false"
+          class="mg-top"
+        />
+      </template>
+      <template slot="secondary-button">
+        {{ $t("settings.cancel") }}
+      </template>
+      <template slot="primary-button">
+        {{ $t("settings.recovery_confirm_button") }}
+      </template>
+    </NsModal>
   </cv-grid>
 </template>
 
@@ -307,10 +447,20 @@ export default {
       adAdminGroup: "gitea-admin",
       adUserSearchBase: "",
       adNestedGroups: false,
+      recoveryUsername: "ns8-recovery-admin",
+      recoveryPassword: "",
+      recoveryCredentialsAvailable: false,
+      recoveryCredentialsLoaded: false,
+      recoveryPasswordRotated: false,
+      isRecoverySectionOpen: false,
+      showRecoverySuccessAfterLoad: false,
+      isRecoveryResetModalShown: false,
       loading: {
         getConfiguration: false,
         configureModule: false,
         listUserDomains: false,
+        getRecoveryCredentials: false,
+        resetRecoveryPassword: false,
       },
       error: {
         getConfiguration: "",
@@ -324,6 +474,8 @@ export default {
         ad_user_group: "",
         ad_admin_group: "",
         ad_user_search_base: "",
+        getRecoveryCredentials: "",
+        resetRecoveryPassword: "",
       },
     };
   },
@@ -341,7 +493,11 @@ export default {
   },
   beforeRouteLeave(to, from, next) {
     clearInterval(this.urlCheckInterval);
+    this.clearRecoveryCredentials();
     next();
+  },
+  beforeDestroy() {
+    this.clearRecoveryCredentials();
   },
   methods: {
     async getConfiguration() {
@@ -596,6 +752,139 @@ export default {
         }));
       this.loading.listUserDomains = false;
     },
+    recoveryAccordionChanged({ changedIndex, state }) {
+      if (changedIndex !== 0) {
+        return;
+      }
+      if (state[0]) {
+        this.isRecoverySectionOpen = true;
+        this.getRecoveryCredentials();
+      } else {
+        this.clearRecoveryCredentials();
+      }
+    },
+    clearRecoveryCredentials() {
+      this.recoveryPassword = "";
+      this.recoveryCredentialsAvailable = false;
+      this.recoveryCredentialsLoaded = false;
+      this.recoveryPasswordRotated = false;
+      this.isRecoverySectionOpen = false;
+      this.showRecoverySuccessAfterLoad = false;
+      this.error.getRecoveryCredentials = "";
+    },
+    async getRecoveryCredentials(showSuccess = false) {
+      if (this.loading.getRecoveryCredentials) {
+        return;
+      }
+      this.loading.getRecoveryCredentials = true;
+      this.error.getRecoveryCredentials = "";
+      this.recoveryPassword = "";
+      this.recoveryCredentialsAvailable = false;
+      this.recoveryCredentialsLoaded = false;
+      this.recoveryPasswordRotated = false;
+      this.showRecoverySuccessAfterLoad = showSuccess;
+      const taskAction = "get-recovery-credentials";
+      const eventId = this.getUuid();
+
+      this.core.$root.$once(
+        `${taskAction}-aborted-${eventId}`,
+        this.getRecoveryCredentialsAborted
+      );
+      this.core.$root.$once(
+        `${taskAction}-completed-${eventId}`,
+        this.getRecoveryCredentialsCompleted
+      );
+
+      const res = await to(
+        this.createModuleTaskForApp(this.instanceName, {
+          action: taskAction,
+          data: {},
+          extra: {
+            title: this.$t("action." + taskAction),
+            isNotificationHidden: true,
+            eventId,
+          },
+        })
+      );
+      const err = res[0];
+      if (err) {
+        this.error.getRecoveryCredentials = this.getErrorMessage(err);
+        this.loading.getRecoveryCredentials = false;
+      }
+    },
+    getRecoveryCredentialsAborted() {
+      this.error.getRecoveryCredentials = this.$t("error.generic_error");
+      this.loading.getRecoveryCredentials = false;
+    },
+    getRecoveryCredentialsCompleted(taskContext, taskResult) {
+      this.loading.getRecoveryCredentials = false;
+      if (!this.isRecoverySectionOpen) {
+        this.showRecoverySuccessAfterLoad = false;
+        return;
+      }
+      const credentials = taskResult.output;
+      this.recoveryUsername = credentials.username;
+      this.recoveryPassword = credentials.password;
+      this.recoveryCredentialsAvailable = credentials.available;
+      this.recoveryCredentialsLoaded = true;
+      this.recoveryPasswordRotated = this.showRecoverySuccessAfterLoad;
+      this.showRecoverySuccessAfterLoad = false;
+    },
+    showRecoveryResetModal() {
+      this.error.resetRecoveryPassword = "";
+      this.isRecoveryResetModalShown = true;
+    },
+    closeRecoveryResetModal() {
+      if (this.loading.resetRecoveryPassword) {
+        return;
+      }
+      this.isRecoveryResetModalShown = false;
+      this.error.resetRecoveryPassword = "";
+    },
+    async resetRecoveryPassword() {
+      if (this.loading.resetRecoveryPassword) {
+        return;
+      }
+      this.loading.resetRecoveryPassword = true;
+      this.error.resetRecoveryPassword = "";
+      const taskAction = "reset-recovery-password";
+      const eventId = this.getUuid();
+
+      this.core.$root.$once(
+        `${taskAction}-aborted-${eventId}`,
+        this.resetRecoveryPasswordAborted
+      );
+      this.core.$root.$once(
+        `${taskAction}-completed-${eventId}`,
+        this.resetRecoveryPasswordCompleted
+      );
+
+      const res = await to(
+        this.createModuleTaskForApp(this.instanceName, {
+          action: taskAction,
+          data: {},
+          extra: {
+            title: this.$t("action." + taskAction),
+            isNotificationHidden: true,
+            eventId,
+          },
+        })
+      );
+      const err = res[0];
+      if (err) {
+        this.error.resetRecoveryPassword = this.getErrorMessage(err);
+        this.loading.resetRecoveryPassword = false;
+      }
+    },
+    resetRecoveryPasswordAborted() {
+      this.error.resetRecoveryPassword = this.$t("error.generic_error");
+      this.loading.resetRecoveryPassword = false;
+    },
+    resetRecoveryPasswordCompleted() {
+      this.loading.resetRecoveryPassword = false;
+      this.isRecoveryResetModalShown = false;
+      this.getRecoveryCredentials(true);
+    },
   },
 };
 </script>
@@ -615,7 +904,8 @@ export default {
 }
 
 .setup-settings,
-.ad-settings {
+.ad-settings,
+.recovery-settings {
   max-width: 38rem;
   margin: $spacing-07 0;
   padding-top: $spacing-05;
@@ -649,5 +939,17 @@ export default {
 .field-help {
   margin: -$spacing-05 0 $spacing-06;
   color: $text-02;
+}
+
+.recovery-description {
+  margin-top: 0;
+}
+
+.credential-field {
+  margin-bottom: $spacing-06;
+}
+
+.mg-top {
+  margin-top: $spacing-06;
 }
 </style>

@@ -50,7 +50,24 @@
         "ad_user_search_base_help": "Deixe vazio para usar CN=Users seguido do DN base do domínio.",
         "ad_nested_groups": "Aceitar grupos AD aninhados",
         "ad_nested_groups_help": "Ative para aceitar associações indiretas a gitea-user ou gitea-admin.",
-        "ad_groups_must_differ": "Os grupos permitido e administrador devem ser diferentes"
+        "ad_groups_must_differ": "Os grupos permitido e administrador devem ser diferentes",
+        "recovery_title": "Administrador de recuperação",
+        "recovery_description": "Este administrador local é independente do Active Directory e destina-se ao acesso de emergência. Expanda esta secção apenas quando precisar das credenciais.",
+        "recovery_username": "Nome da conta",
+        "recovery_password": "Palavra-passe",
+        "recovery_generate_password": "Gerar nova palavra-passe",
+        "recovery_unavailable_title": "Não existe uma palavra-passe guardada",
+        "recovery_unavailable": "Esta instalação ainda não tem uma palavra-passe de recuperação gerida pelo NS8. Gere uma nova com o botão; qualquer palavra-passe definida manualmente será substituída.",
+        "recovery_reset_success": "Palavra-passe de recuperação atualizada",
+        "recovery_reset_success_description": "As credenciais apresentadas abaixo são válidas imediatamente.",
+        "recovery_confirm_title": "Substituir a palavra-passe de recuperação?",
+        "recovery_confirm_warning_title": "A palavra-passe atual deixará de funcionar",
+        "recovery_confirm_warning": "Depois da geração, a palavra-passe anterior do administrador de recuperação já não poderá ser utilizada.",
+        "recovery_confirm_description": "O NS8 gera uma palavra-passe aleatória forte, ativa-a para ns8-recovery-admin e apresenta-a nesta secção.",
+        "recovery_confirm_button": "Substituir palavra-passe",
+        "copy_to_clipboard": "Copiar para a área de transferência",
+        "copied_to_clipboard": "Copiado para a área de transferência",
+        "cancel": "Cancelar"
     },
     "common": {
         "required": "Obrigatório",
@@ -85,7 +102,9 @@
         "configure-module": "Configurar módulo",
         "get-configuration": "Obter configuração",
         "get-name": "Obter nome",
-        "list-user-domains": "Listar domínios de utilizador"
+        "list-user-domains": "Listar domínios de utilizador",
+        "get-recovery-credentials": "Obter credenciais de recuperação",
+        "reset-recovery-password": "Gerar nova palavra-passe de recuperação"
     },
     "task": {
         "cannot_create_task": "Não é possível criar a tarefa {action}"

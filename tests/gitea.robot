@@ -96,6 +96,20 @@ Check automated initial setup
     Should Be Equal As Integers    ${users_rc}    0    Cannot list Gitea users: ${users}
     Should Contain    ${users}    ns8-recovery-admin
 
+Check recovery administrator credentials
+    ${reset_output}    ${reset_rc} =    Execute Command    api-cli run module/${module_id}/reset-recovery-password --data '{}'
+    ...    return_rc=True
+    Should Be Equal As Integers    ${reset_rc}    0    Cannot reset recovery password: ${reset_output}
+    ${credentials_rc} =    Execute Command    api-cli run module/${module_id}/get-recovery-credentials --data '{}' | jq -e '.available == true and .username == "ns8-recovery-admin" and (.password | length >= 32)' >/dev/null
+    ...    return_rc=True    return_stdout=False
+    Should Be Equal As Integers    ${credentials_rc}    0
+    ${credentials_mode} =    Execute Command    runagent -m ${module_id} stat -c '%a' gitea-recovery.env
+    ${credentials_mode} =    Strip String    ${credentials_mode}
+    Should Be Equal    ${credentials_mode}    600
+    ${login_rc} =    Execute Command    runagent -m ${module_id} bash -lc 'set -a; source gitea-recovery.env; curl -fsS --max-time 10 -u "$GITEA_RECOVERY_USERNAME:$GITEA_RECOVERY_PASSWORD" "http://127.0.0.1:$TCP_PORT/api/v1/user" | jq -er .login | grep -Fx -- "$GITEA_RECOVERY_USERNAME" >/dev/null'
+    ...    return_rc=True    return_stdout=False
+    Should Be Equal As Integers    ${login_rc}    0
+
 Check public HTTPS route
     ${rc} =    Execute Command    curl -kfsS --max-time 10 --resolve ${HOST}:443:127.0.0.1 https://${HOST}/api/healthz
     ...    return_rc=True    return_stdout=False
@@ -147,6 +161,9 @@ Manual setup exposes Gitea web installer
     ${override}    ${override_rc} =    Execute Command    runagent -m ${manual_module_id} grep -F 'GITEA__security__INSTALL_LOCK' gitea.env
     ...    return_rc=True
     Should Not Be Equal As Integers    ${override_rc}    0    Manual setup must not override INSTALL_LOCK: ${override}
+    ${reset_rc} =    Execute Command    api-cli run module/${manual_module_id}/reset-recovery-password --data '{}'
+    ...    return_rc=True    return_stdout=False
+    Should Not Be Equal As Integers    ${reset_rc}    0
     ${rc} =    Execute Command    remove-module --no-preserve ${manual_module_id}
     ...    return_rc=True    return_stdout=False
     Should Be Equal As Integers    ${rc}    0
