@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://nethserver.org/json-schema/task/output/gitea/reset-recovery-password",
+  "title": "Gitea recovery password reset result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["changed", "username"],
+  "properties": {
+    "changed": {
+      "const": true
+    },
+    "username": {
+      "const": "ns8-recovery-admin"
+    }
+  }
+}

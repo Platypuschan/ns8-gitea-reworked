@@ -59,7 +59,24 @@
         "ad_user_search_base_help": "Lascia vuoto per usare CN=Users seguito dal DN base del dominio.",
         "ad_nested_groups": "Accetta gruppi AD nidificati",
         "ad_nested_groups_help": "Abilita per accettare appartenenze indirette a gitea-user o gitea-admin.",
-        "ad_groups_must_differ": "Il gruppo autorizzato e quello amministratore devono essere diversi"
+        "ad_groups_must_differ": "Il gruppo autorizzato e quello amministratore devono essere diversi",
+        "recovery_title": "Amministratore di ripristino",
+        "recovery_description": "Questo amministratore locale è indipendente da Active Directory ed è destinato all'accesso di emergenza. Espandi questa sezione solo quando ti servono le credenziali.",
+        "recovery_username": "Nome account",
+        "recovery_password": "Password",
+        "recovery_generate_password": "Genera nuova password",
+        "recovery_unavailable_title": "Nessuna password salvata",
+        "recovery_unavailable": "Questa installazione non dispone ancora di una password di ripristino gestita da NS8. Generane una nuova con il pulsante; sostituirà qualsiasi password impostata manualmente.",
+        "recovery_reset_success": "Password di ripristino aggiornata",
+        "recovery_reset_success_description": "Le credenziali mostrate di seguito sono valide immediatamente.",
+        "recovery_confirm_title": "Sostituire la password di ripristino?",
+        "recovery_confirm_warning_title": "La password attuale smetterà di funzionare",
+        "recovery_confirm_warning": "Dopo la generazione, la password precedente dell'amministratore di ripristino non potrà più essere utilizzata.",
+        "recovery_confirm_description": "NS8 genera una password casuale sicura, la attiva per ns8-recovery-admin e la mostra in questa sezione.",
+        "recovery_confirm_button": "Sostituisci password",
+        "copy_to_clipboard": "Copia negli appunti",
+        "copied_to_clipboard": "Copiato negli appunti",
+        "cancel": "Annulla"
     },
     "error": {
         "error": "Errore",
@@ -82,7 +99,9 @@
         "list-backup-repositories": "Elenca repository di backup",
         "list-backups": "Elenca backup",
         "list-installed-modules": "Elenco moduli installati",
-        "list-user-domains": "Elenca domini utente"
+        "list-user-domains": "Elenca domini utente",
+        "get-recovery-credentials": "Ottieni credenziali di ripristino",
+        "reset-recovery-password": "Genera una nuova password di ripristino"
     },
     "task": {
         "cannot_create_task": "Impossibile eseguire task {action}"

@@ -1,0 +1,7 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://nethserver.org/json-schema/task/input/gitea/reset-recovery-password",
+  "title": "Reset Gitea recovery password",
+  "type": "object",
+  "additionalProperties": false
+}
