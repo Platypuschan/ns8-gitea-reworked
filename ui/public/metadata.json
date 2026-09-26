@@ -4,11 +4,14 @@
     "en": "Private, self-hosted Git service for NethServer 8.",
     "de": "Privater, selbst gehosteter Git-Dienst für NethServer 8."
   },
-  "categories": [],
+  "categories": ["development"],
   "authors": [
     {
       "name": "Kemboi Elvis",
       "email": "kemboielvis@genius.ke"
+    },
+    {
+      "name": "Platypuschan"
     }
   ],
   "docs": {
