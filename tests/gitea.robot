@@ -106,7 +106,7 @@ Check recovery administrator credentials
     ${credentials_mode} =    Execute Command    runagent -m ${module_id} stat -c '%a' gitea-recovery.env
     ${credentials_mode} =    Strip String    ${credentials_mode}
     Should Be Equal    ${credentials_mode}    600
-    ${login_rc} =    Execute Command    runagent -m ${module_id} bash -lc 'set -a; source gitea-recovery.env; curl -fsS --max-time 10 -u "$GITEA_RECOVERY_USERNAME:$GITEA_RECOVERY_PASSWORD" "http://127.0.0.1:$TCP_PORT/api/v1/user" | jq -e --arg expected "$GITEA_RECOVERY_USERNAME" ".login == \$expected" >/dev/null'
+    ${login_rc} =    Execute Command    runagent -m ${module_id} bash -lc 'set -a; source gitea-recovery.env; curl -fsS --max-time 10 -u "$GITEA_RECOVERY_USERNAME:$GITEA_RECOVERY_PASSWORD" "http://127.0.0.1:$TCP_PORT/api/v1/user" | jq -er .login | grep -Fx -- "$GITEA_RECOVERY_USERNAME" >/dev/null'
     ...    return_rc=True    return_stdout=False
     Should Be Equal As Integers    ${login_rc}    0
 
