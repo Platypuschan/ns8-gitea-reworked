@@ -54,7 +54,24 @@
     "ad_user_search_base_help": "Leer lassen, um automatisch CN=Users plus Basis-DN der ausgewählten Domäne zu verwenden.",
     "ad_nested_groups": "Verschachtelte AD-Gruppen berücksichtigen",
     "ad_nested_groups_help": "Aktivieren, wenn indirekte Mitgliedschaften in gitea-user oder gitea-admin gelten sollen.",
-    "ad_groups_must_differ": "Zugangs- und Administratorgruppe müssen unterschiedlich sein"
+    "ad_groups_must_differ": "Zugangs- und Administratorgruppe müssen unterschiedlich sein",
+    "recovery_title": "Recovery-Administrator",
+    "recovery_description": "Dieser lokale Administrator ist unabhängig von Active Directory und für den Notfallzugriff vorgesehen. Klappe diesen Bereich nur auf, wenn du die Zugangsdaten benötigst.",
+    "recovery_username": "Kontoname",
+    "recovery_password": "Passwort",
+    "recovery_generate_password": "Neues Passwort generieren",
+    "recovery_unavailable_title": "Kein gespeichertes Passwort vorhanden",
+    "recovery_unavailable": "Diese Installation besitzt noch kein durch NS8 gespeichertes Recovery-Passwort. Erzeuge mit der Schaltfläche ein neues Passwort; ein eventuell zuvor manuell gesetztes Passwort wird dabei ersetzt.",
+    "recovery_reset_success": "Recovery-Passwort erneuert",
+    "recovery_reset_success_description": "Die unten angezeigten Zugangsdaten sind ab sofort gültig.",
+    "recovery_confirm_title": "Recovery-Passwort ersetzen?",
+    "recovery_confirm_warning_title": "Bestehendes Passwort wird ungültig",
+    "recovery_confirm_warning": "Nach dem Erzeugen kann das bisherige Passwort des Recovery-Administrators nicht mehr verwendet werden.",
+    "recovery_confirm_description": "NS8 erzeugt ein starkes Zufallspasswort, aktiviert es für ns8-recovery-admin und zeigt es anschließend in diesem Abschnitt an.",
+    "recovery_confirm_button": "Passwort ersetzen",
+    "copy_to_clipboard": "In die Zwischenablage kopieren",
+    "copied_to_clipboard": "In die Zwischenablage kopiert",
+    "cancel": "Abbrechen"
   },
   "common": {
     "required": "erforderlich",
@@ -93,6 +110,8 @@
     "configure-module": "Modul konfigurieren",
     "get-configuration": "Konfiguration abrufen",
     "list-user-domains": "Benutzerdomänen abrufen",
+    "get-recovery-credentials": "Recovery-Zugangsdaten abrufen",
+    "reset-recovery-password": "Recovery-Passwort neu erzeugen",
     "get-name": "Name abrufen"
   },
   "task": {

@@ -452,6 +452,7 @@ class PortAllocationTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("state/gitea-setup.env", state_include)
+        self.assertIn("state/gitea-recovery.env", state_include)
 
 
 class BackupRestoreTests(unittest.TestCase):

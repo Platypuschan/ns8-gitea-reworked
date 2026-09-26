@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://nethserver.org/json-schema/task/output/gitea/get-recovery-credentials",
+  "title": "Gitea recovery credentials",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["available", "username", "password"],
+  "properties": {
+    "available": {
+      "type": "boolean"
+    },
+    "username": {
+      "const": "ns8-recovery-admin"
+    },
+    "password": {
+      "type": "string",
+      "maxLength": 128
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "available": {"const": true}
+        }
+      },
+      "then": {
+        "properties": {
+          "password": {"minLength": 32}
+        }
+      },
+      "else": {
+        "properties": {
+          "password": {"const": ""}
+        }
+      }
+    }
+  ]
+}

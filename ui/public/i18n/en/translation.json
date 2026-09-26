@@ -65,7 +65,24 @@
     "ad_user_search_base_help": "Leave blank to use CN=Users followed by the selected domain's base DN.",
     "ad_nested_groups": "Accept nested AD groups",
     "ad_nested_groups_help": "Enable when indirect membership in gitea-user or gitea-admin should apply.",
-    "ad_groups_must_differ": "The allowed and administrator groups must be different"
+    "ad_groups_must_differ": "The allowed and administrator groups must be different",
+    "recovery_title": "Recovery administrator",
+    "recovery_description": "This local administrator is independent of Active Directory and is intended for emergency access. Expand this section only when you need the credentials.",
+    "recovery_username": "Account name",
+    "recovery_password": "Password",
+    "recovery_generate_password": "Generate new password",
+    "recovery_unavailable_title": "No stored password is available",
+    "recovery_unavailable": "This installation does not yet have an NS8-managed recovery password. Generate a new one with the button; this replaces any password that may have been set manually.",
+    "recovery_reset_success": "Recovery password updated",
+    "recovery_reset_success_description": "The credentials shown below are effective immediately.",
+    "recovery_confirm_title": "Replace the recovery password?",
+    "recovery_confirm_warning_title": "The current password will stop working",
+    "recovery_confirm_warning": "After generation, the recovery administrator's previous password can no longer be used.",
+    "recovery_confirm_description": "NS8 generates a strong random password, activates it for ns8-recovery-admin, and then displays it in this section.",
+    "recovery_confirm_button": "Replace password",
+    "copy_to_clipboard": "Copy to clipboard",
+    "copied_to_clipboard": "Copied to clipboard",
+    "cancel": "Cancel"
   },
   "about": {
     "title": "About"
@@ -82,7 +99,9 @@
     "list-backup-repositories": "List backup repositories",
     "list-backups": "List backups",
     "list-installed-modules": "List installed modules",
-    "list-user-domains": "List user domains"
+    "list-user-domains": "List user domains",
+    "get-recovery-credentials": "Get recovery credentials",
+    "reset-recovery-password": "Generate a new recovery password"
   },
   "error": {
     "401": "Invalid authentication",

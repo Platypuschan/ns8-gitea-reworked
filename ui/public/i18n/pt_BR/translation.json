@@ -25,7 +25,9 @@
     "action": {
         "list-backup-repositories": "List backup repositories",
         "list-backups": "List backups",
-        "list-user-domains": "List user domains"
+        "list-user-domains": "Listar domínios de usuários",
+        "get-recovery-credentials": "Obter credenciais de recuperação",
+        "reset-recovery-password": "Gerar nova senha de recuperação"
     },
     "task": {
         "cannot_create_task": "Cannot create task {action}"
@@ -67,6 +69,23 @@
         "ad_user_search_base_help": "Deixe vazio para usar CN=Users seguido pelo DN base do domínio.",
         "ad_nested_groups": "Aceitar grupos AD aninhados",
         "ad_nested_groups_help": "Ative para aceitar associações indiretas a gitea-user ou gitea-admin.",
-        "ad_groups_must_differ": "Os grupos permitido e administrador devem ser diferentes"
+        "ad_groups_must_differ": "Os grupos permitido e administrador devem ser diferentes",
+        "recovery_title": "Administrador de recuperação",
+        "recovery_description": "Este administrador local é independente do Active Directory e destina-se ao acesso de emergência. Expanda esta seção somente quando precisar das credenciais.",
+        "recovery_username": "Nome da conta",
+        "recovery_password": "Senha",
+        "recovery_generate_password": "Gerar nova senha",
+        "recovery_unavailable_title": "Nenhuma senha armazenada",
+        "recovery_unavailable": "Esta instalação ainda não possui uma senha de recuperação gerenciada pelo NS8. Gere uma nova com o botão; qualquer senha definida manualmente será substituída.",
+        "recovery_reset_success": "Senha de recuperação atualizada",
+        "recovery_reset_success_description": "As credenciais exibidas abaixo são válidas imediatamente.",
+        "recovery_confirm_title": "Substituir a senha de recuperação?",
+        "recovery_confirm_warning_title": "A senha atual deixará de funcionar",
+        "recovery_confirm_warning": "Após a geração, a senha anterior do administrador de recuperação não poderá mais ser usada.",
+        "recovery_confirm_description": "O NS8 gera uma senha aleatória forte, ativa-a para ns8-recovery-admin e a exibe nesta seção.",
+        "recovery_confirm_button": "Substituir senha",
+        "copy_to_clipboard": "Copiar para a área de transferência",
+        "copied_to_clipboard": "Copiado para a área de transferência",
+        "cancel": "Cancelar"
     }
 }

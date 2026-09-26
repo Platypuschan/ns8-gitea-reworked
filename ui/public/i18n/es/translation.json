@@ -50,7 +50,24 @@
         "ad_user_search_base_help": "Déjelo vacío para usar CN=Users seguido del DN base del dominio.",
         "ad_nested_groups": "Aceptar grupos AD anidados",
         "ad_nested_groups_help": "Actívelo para aceptar membresías indirectas en gitea-user o gitea-admin.",
-        "ad_groups_must_differ": "Los grupos permitido y administrador deben ser diferentes"
+        "ad_groups_must_differ": "Los grupos permitido y administrador deben ser diferentes",
+        "recovery_title": "Administrador de recuperación",
+        "recovery_description": "Este administrador local es independiente de Active Directory y está destinado al acceso de emergencia. Abra esta sección solo cuando necesite las credenciales.",
+        "recovery_username": "Nombre de cuenta",
+        "recovery_password": "Contraseña",
+        "recovery_generate_password": "Generar nueva contraseña",
+        "recovery_unavailable_title": "No hay una contraseña guardada",
+        "recovery_unavailable": "Esta instalación aún no tiene una contraseña de recuperación gestionada por NS8. Genere una nueva con el botón; se sustituirá cualquier contraseña configurada manualmente.",
+        "recovery_reset_success": "Contraseña de recuperación actualizada",
+        "recovery_reset_success_description": "Las credenciales que aparecen a continuación son válidas inmediatamente.",
+        "recovery_confirm_title": "¿Sustituir la contraseña de recuperación?",
+        "recovery_confirm_warning_title": "La contraseña actual dejará de funcionar",
+        "recovery_confirm_warning": "Después de generarla, ya no se podrá usar la contraseña anterior del administrador de recuperación.",
+        "recovery_confirm_description": "NS8 genera una contraseña aleatoria segura, la activa para ns8-recovery-admin y la muestra en esta sección.",
+        "recovery_confirm_button": "Sustituir contraseña",
+        "copy_to_clipboard": "Copiar al portapapeles",
+        "copied_to_clipboard": "Copiado al portapapeles",
+        "cancel": "Cancelar"
     },
     "common": {
         "required": "Obligatorio",
@@ -85,7 +102,9 @@
         "configure-module": "Configurar módulo",
         "get-configuration": "Obtener la configuración",
         "get-name": "Obtener el nombre",
-        "list-user-domains": "Listar dominios de usuario"
+        "list-user-domains": "Listar dominios de usuario",
+        "get-recovery-credentials": "Obtener credenciales de recuperación",
+        "reset-recovery-password": "Generar una nueva contraseña de recuperación"
     },
     "task": {
         "cannot_create_task": "No se puede crear la tarea {action}"

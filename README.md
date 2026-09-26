@@ -154,20 +154,21 @@ then either remove it or rename the intended LDAP-via-Bind-DN source to
 ### Recovery administrator
 
 The local `ns8-recovery-admin` is independent of AD and is reserved for
-break-glass access. Its initial random password is not written to logs or module
-state. Set a new password from an NS8 shell when recovery access is needed:
+break-glass access. In managed setup mode, expand **Recovery administrator** on
+the module settings page to view and copy its account name and password. The
+password is generated with a cryptographically secure random generator and is
+stored in the module state file `gitea-recovery.env` with mode `0600`; it is not
+added to the container environment or written to application logs.
 
-```bash
-read -rsp 'New Gitea recovery password: ' GITEA_RECOVERY_PASSWORD; echo
-runagent -m gitea-reworked1 podman exec --user git gitea-app \
-  gitea --config /data/gitea/conf/app.ini admin user change-password \
-  --username ns8-recovery-admin --password "$GITEA_RECOVERY_PASSWORD"
-unset GITEA_RECOVERY_PASSWORD
-```
+Use **Generate new password** to replace the current password. The old password
+stops working immediately after a successful rotation. Instances upgraded from
+a release that did not store recovery credentials show an unavailable notice:
+generating a new password is an explicit operation and does not silently
+replace a password that an operator may have set manually.
 
-Use a unique high-entropy password and do not use this account for routine
-work. If a pre-existing account already uses the reserved name but is inactive
-or is not an administrator, the module refuses to take it over.
+Do not use this account for routine work. If a pre-existing account already
+uses the reserved name but is inactive or is not an administrator, the module
+refuses to take it over.
 
 ## Git over SSH
 
