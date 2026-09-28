@@ -34,6 +34,7 @@ try:
     setup_environment = agent.read_envfile("gitea-setup.env")
     setup_mode = setup_environment.get("GITEA_SETUP_MODE", "").strip().lower()
 except FileNotFoundError:
+    setup_environment = {}
     setup_mode = "managed"
 agent.assert_exp(setup_mode in SETUP_MODES, "The stored Gitea setup mode is invalid.")
 
@@ -49,6 +50,7 @@ configuration = {
     "lets_encrypt": os.environ.get("TRAEFIK_LETS_ENCRYPT") == "True",
     "ssh_port": int(ssh_port) if ssh_port.isdigit() else 0,
     "setup_mode": setup_mode,
+    "mailer_from": setup_environment.get("GITEA_MAILER_FROM", ""),
     "ad_enabled": parse_bool(auth["GITEA_AUTH_ENABLED"]),
     "ad_domain": auth["GITEA_AUTH_DOMAIN"].strip(),
     "ad_user_group": auth["GITEA_AUTH_USER_GROUP"].strip(),

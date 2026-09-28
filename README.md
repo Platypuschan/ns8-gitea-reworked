@@ -165,6 +165,13 @@ a release that did not store recovery credentials show an unavailable notice:
 generating a new password is an explicit operation and does not silently
 replace a password that an operator may have set manually.
 
+Gitea's administration CLI receives recovery and LDAP bind passwords as
+command arguments. They can briefly appear in process listings on the host or
+inside the container during account changes and AD reconciliation. After a
+password-change timeout, the module checks whether the new password already
+works before publishing it. If Gitea is unreachable for that check, retry the
+rotation after service recovery if the displayed password does not work.
+
 Do not use this account for routine work. If a pre-existing account already
 uses the reserved name but is inactive or is not an administrator, the module
 refuses to take it over.
@@ -277,7 +284,18 @@ uploads, package writes, or administrative changes.
 
 Mailer settings are discovered from the centralized NS8 smarthost
 configuration. Changes to the cluster smarthost regenerate the managed Gitea
-mailer environment and restart the application container.
+mailer environment and restart the application container. When the smarthost is
+enabled, the sender defaults to `no-reply@<Gitea hostname>` instead of using
+the SMTP login name, which may not be a valid email address. Set **Gitea mail
+sender** in the module settings if the relay only accepts a particular sender.
+This setting applies in both setup modes and overrides a sender entered in the
+Gitea web installer while the NS8 smarthost is enabled.
+
+If a backup is restored or an instance is cloned into a cluster without its
+configured AD domain, Gitea still starts with the local recovery administrator
+and the managed AD source is disabled. The AD settings remain saved; adding the
+domain to the target cluster and triggering reconciliation enables the source
+again. A new explicit AD configuration still requires a domain that exists.
 
 ## Uninstall
 

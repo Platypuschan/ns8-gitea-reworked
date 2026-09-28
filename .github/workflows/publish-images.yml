@@ -17,11 +17,11 @@ concurrency:
 jobs:
   publish-images:
     if: github.run_number > 1
-    uses: NethServer/ns8-github-actions/.github/workflows/publish-branch.yml@v1
+    uses: NethServer/ns8-github-actions/.github/workflows/publish-branch.yml@1f7be3c6e4791a978df9c0a0454e9a8fea8d211a # v1
 
   module:
     needs: publish-images
-    uses: NethServer/ns8-github-actions/.github/workflows/module-info.yml@v1
+    uses: NethServer/ns8-github-actions/.github/workflows/module-info.yml@1f7be3c6e4791a978df9c0a0454e9a8fea8d211a # v1
 
   qemu:
     name: "NS8 ${{ matrix.distro }} / ${{ matrix.scenario }}"
@@ -61,6 +61,6 @@ jobs:
   trivy:
     needs: module
     if: ${{ needs.module.outputs.release == 'stable' || needs.module.outputs.release == 'latest' || github.event_name == 'workflow_dispatch' }}
-    uses: NethServer/ns8-github-actions/.github/workflows/scan-with-trivy.yml@v1
+    uses: NethServer/ns8-github-actions/.github/workflows/scan-with-trivy.yml@1f7be3c6e4791a978df9c0a0454e9a8fea8d211a # v1
     with:
       images: ${{ needs.module.outputs.images }}

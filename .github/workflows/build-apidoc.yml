@@ -13,4 +13,4 @@ permissions:
 
 jobs:
   build-apidoc:
-    uses: NethServer/ns8-github-actions/.github/workflows/build-apidoc.yml@v1
+    uses: NethServer/ns8-github-actions/.github/workflows/build-apidoc.yml@1f7be3c6e4791a978df9c0a0454e9a8fea8d211a # v1
