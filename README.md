@@ -29,13 +29,23 @@ major-version migration.
 
 ## Install
 
-Install the module on an NS8 node:
+Add the [Platypuschan NS8 module catalog](https://github.com/Platypuschan/ns8-modules#add-the-repository)
+as a software repository and install **Gitea Reworked** from the NS8 Software
+Center.
+
+To install from the command line, use a released version number from
+[`CATALOG_VERSION`](CATALOG_VERSION) or the catalog, for example:
 
 ```bash
-add-module ghcr.io/platypuschan/gitea-reworked:latest 1
+add-module ghcr.io/platypuschan/gitea-reworked:0.1.1 1
 ```
 
 The command returns the instance ID, for example `gitea-reworked1`.
+
+Do not install production instances from `:latest` or a branch tag. NS8 takes
+the displayed module version from the image tag and offers updates only to
+instances with a SemVer version such as `0.1.1`; an instance installed from
+`:latest` never receives update notifications.
 
 An instance upgraded from the original module can retain an older ID such as
 `gitea1`; always use the actual instance ID returned by NS8.
@@ -165,6 +175,13 @@ a release that did not store recovery credentials show an unavailable notice:
 generating a new password is an explicit operation and does not silently
 replace a password that an operator may have set manually.
 
+Gitea's administration CLI receives recovery and LDAP bind passwords as
+command arguments. They can briefly appear in process listings on the host or
+inside the container during account changes and AD reconciliation. After a
+password-change timeout, the module checks whether the new password already
+works before publishing it. If Gitea is unreachable for that check, retry the
+rotation after service recovery if the displayed password does not work.
+
 Do not use this account for routine work. If a pre-existing account already
 uses the reserved name but is inactive or is not an administrator, the module
 refuses to take it over.
@@ -214,15 +231,21 @@ and restrict access at the surrounding network firewall as appropriate.
 ## Updates
 
 Create and verify an NS8 application backup before every Gitea upgrade. Review
-the Gitea release notes, then update the instance:
+the Gitea release notes, then update the instance from the NS8 Software Center
+or from the command line with the new version number:
 
 ```bash
 api-cli run update-module --data '{
-  "module_url": "ghcr.io/platypuschan/gitea-reworked:latest",
-  "instances": ["gitea-reworked1"],
-  "force": true
+  "module_url": "ghcr.io/platypuschan/gitea-reworked:0.1.1",
+  "instances": ["gitea-reworked1"]
 }'
 ```
+
+An instance that shows the version `latest` was installed or updated from the
+moving `:latest` tag. Update it once with the command above to a released
+version; afterwards the Software Center offers new catalog versions again.
+`force` is only needed for moving development tags such as `:latest`, because
+it makes NS8 pull the image again even if the tag is already present locally.
 
 When updating an instance created by the original one-port module, the
 migration is automatic:
@@ -277,7 +300,18 @@ uploads, package writes, or administrative changes.
 
 Mailer settings are discovered from the centralized NS8 smarthost
 configuration. Changes to the cluster smarthost regenerate the managed Gitea
-mailer environment and restart the application container.
+mailer environment and restart the application container. When the smarthost is
+enabled, the sender defaults to `no-reply@<Gitea hostname>` instead of using
+the SMTP login name, which may not be a valid email address. Set **Gitea mail
+sender** in the module settings if the relay only accepts a particular sender.
+This setting applies in both setup modes and overrides a sender entered in the
+Gitea web installer while the NS8 smarthost is enabled.
+
+If a backup is restored or an instance is cloned into a cluster without its
+configured AD domain, Gitea still starts with the local recovery administrator
+and the managed AD source is disabled. The AD settings remain saved; adding the
+domain to the target cluster and triggering reconciliation enables the source
+again. A new explicit AD configuration still requires a domain that exists.
 
 ## Uninstall
 
@@ -298,6 +332,8 @@ The repository runs:
   and recovery-account handling
 - deterministic Yarn install, UI lint, and production UI build
 - the official NS8 install and update scenarios on supported test nodes
+- an upgrade from the newest released catalog version to the tested image,
+  without `force`, as the Software Center performs it
 - HTTPS health checks and an SSH protocol-banner check on the allocated port
 
 To run the Robot Framework tests against a live NS8 leader, install
@@ -311,3 +347,17 @@ run-ns8-tests NS8_LEADER ghcr.io/platypuschan/gitea-reworked:latest
 
 Dependency updates are proposed through the shared NS8 Renovate preset and
 require manual review; they are not auto-merged.
+
+## Releases
+
+[`CATALOG_VERSION`](CATALOG_VERSION) holds the SemVer version of the next
+catalog release. Every change to `imageroot/`, `ui/` or `build-images.sh`
+must raise it; the Validate workflow fails otherwise. Documentation and test
+changes do not need a new version.
+
+After a push to `main` passes all image tests, the *Publish tested catalog
+version* workflow copies exactly the tested image digest to the tag named in
+`CATALOG_VERSION`. An existing version tag is never overwritten. The
+[catalog](https://github.com/Platypuschan/ns8-modules) picks up new SemVer
+tags automatically. `:latest` always follows `main` and is meant only for
+development and tests.

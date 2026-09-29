@@ -104,3 +104,4 @@ dist
 .tern-port
 
 tests/outputs/
+__pycache__/

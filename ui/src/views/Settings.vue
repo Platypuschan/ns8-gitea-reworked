@@ -329,6 +329,17 @@
                 </template>
               </cv-accordion-item>
             </cv-accordion>
+            <cv-text-input
+              :label="$t('settings.mailer_from')"
+              :placeholder="`no-reply@${host || 'gitea.example.org'}`"
+              v-model.trim="mailerFrom"
+              class="mg-bottom"
+              :invalid-message="$t(error.mailer_from)"
+              :disabled="loading.getConfiguration || loading.configureModule"
+              ref="mailer_from"
+            >
+            </cv-text-input>
+            <p class="field-help">{{ $t("settings.mailer_from_help") }}</p>
             <!-- advanced options -->
             <cv-accordion class="maxwidth mg-bottom">
               <cv-accordion-item>
@@ -435,6 +446,7 @@ export default {
       },
       urlCheckInterval: null,
       host: "",
+      mailerFrom: "",
       sshPort: 0,
       setupMode: "",
       setupModeState: "pending",
@@ -466,6 +478,7 @@ export default {
         getConfiguration: "",
         configureModule: "",
         host: "",
+        mailer_from: "",
         setup_mode: "",
         lets_encrypt: "",
         http2https: "",
@@ -545,6 +558,7 @@ export default {
     getConfigurationCompleted(taskContext, taskResult) {
       const config = taskResult.output;
       this.host = config.host;
+      this.mailerFrom = config.mailer_from;
       this.sshPort = config.ssh_port;
       this.setupModeState = config.setup_mode;
       this.setupMode = config.setup_mode === "pending" ? "" : config.setup_mode;
@@ -579,6 +593,19 @@ export default {
         this.error.setup_mode = "common.required";
         if (isValidationOk) {
           this.focusElement("setup_mode");
+        }
+        isValidationOk = false;
+      }
+      if (
+        this.mailerFrom &&
+        (this.mailerFrom.length > 254 ||
+          !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(
+            this.mailerFrom
+          ))
+      ) {
+        this.error.mailer_from = "settings.invalid_mailer_from";
+        if (isValidationOk) {
+          this.focusElement("mailer_from");
         }
         isValidationOk = false;
       }
@@ -669,6 +696,7 @@ export default {
             lets_encrypt: this.isLetsEncryptEnabled,
             http2https: this.isHttpToHttpsEnabled,
             setup_mode: this.setupMode,
+            mailer_from: this.mailerFrom,
             ad_enabled: this.setupMode === "managed" && this.isAdEnabled,
             ad_domain: this.adDomain,
             ad_user_group: this.adUserGroup,

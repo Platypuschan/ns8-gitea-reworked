@@ -25,9 +25,18 @@ config = {
 }
 
 if smtp["enabled"]:
+    try:
+        sender = agent.read_envfile("gitea-setup.env").get("GITEA_MAILER_FROM", "")
+    except FileNotFoundError:
+        sender = ""
+    # NS8's own mail sender uses no-reply@hostname. Always supply a valid
+    # address: Gitea otherwise derives FROM from the SMTP username, which
+    # need not be an email address and can prevent Gitea from starting.
+    sender = sender or f"no-reply@{os.environ.get('TRAEFIK_HOST') or 'localhost.invalid'}"
     encryption = str(smtp.get("encrypt_smtp", "starttls")).lower()
     config.update(
         {
+            "GITEA__mailer__FROM": sender,
             "GITEA__mailer__PROTOCOL": protocols.get(encryption, "smtp+starttls"),
             "GITEA__mailer__SMTP_ADDR": str(smtp.get("host", "")),
             "GITEA__mailer__SMTP_PORT": str(smtp.get("port", "")),

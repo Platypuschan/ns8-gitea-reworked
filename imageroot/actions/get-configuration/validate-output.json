@@ -25,6 +25,7 @@
     "lets_encrypt",
     "ssh_port",
     "setup_mode",
+    "mailer_from",
     "ad_enabled",
     "ad_domain",
     "ad_user_group",
@@ -59,6 +60,10 @@
       "type": "string",
       "title": "Initial setup mode",
       "enum": ["pending", "manual", "managed"]
+    },
+    "mailer_from": {
+      "type": "string",
+      "title": "Gitea mail sender address"
     },
     "ad_enabled": {
       "type": "boolean",

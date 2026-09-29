@@ -46,6 +46,12 @@
             "description": "Choose Gitea's web installer or NS8-managed initialization. The choice is immutable after the first successful configuration.",
             "enum": ["manual", "managed"]
         },
+        "mailer_from": {
+            "type": "string",
+            "title": "Gitea mail sender address",
+            "description": "Optional sender email address. Empty uses no-reply@<Gitea hostname>.",
+            "maxLength": 254
+        },
         "ad_enabled": {
             "type": "boolean",
             "title": "Active Directory authentication",

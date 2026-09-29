@@ -50,7 +50,7 @@ Login to cluster-admin
 
 *** Test Cases ***
 Add module for ${SCENARIO} scenario
-    IF    r'${SCENARIO}' == 'update'
+    IF    r'${SCENARIO}' in ('update', 'upgrade')
         Set Local Variable    ${install_image}    ${BASELINE_IMAGE}
     ELSE
         Set Local Variable    ${install_image}    ${IMAGE_URL}
@@ -62,7 +62,7 @@ Add module for ${SCENARIO} scenario
     Set Suite Variable    ${module_id}    ${output.module_id}
 
 Configure module
-    IF    r'${SCENARIO}' == 'install'
+    IF    r'${SCENARIO}' in ('install', 'upgrade')
         ${configure_data} =    Set Variable    {"host":"${HOST}","http2https":true,"lets_encrypt":false,"setup_mode":"managed"}
     ELSE
         ${configure_data} =    Set Variable    {"host":"${HOST}","http2https":true,"lets_encrypt":false}
@@ -81,6 +81,13 @@ Update module
         ${output}    ${rc} =    Execute Command    api-cli run update-module --data '{"force":true,"module_url":"${IMAGE_URL}","instances":["${module_id}"]}'
         ...    return_rc=True
         Should Be Equal As Integers    ${rc}    0    action update-module ${IMAGE_URL} failed: ${output}
+    ELSE IF    r'${SCENARIO}' == 'upgrade'
+        # Released version to the image under test, without force, as Software Center does.
+        ${output}    ${rc} =    Execute Command    api-cli run update-module --data '{"module_url":"${IMAGE_URL}","instances":["${module_id}"]}'
+        ...    return_rc=True
+        Should Be Equal As Integers    ${rc}    0    action update-module ${IMAGE_URL} failed: ${output}
+        ${image_url} =    Execute Command    runagent -m ${module_id} printenv IMAGE_URL
+        Should Be Equal    ${image_url.strip()}    ${IMAGE_URL}
     END
 
 Check web and SSH ports after install or update
