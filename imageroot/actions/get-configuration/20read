@@ -59,4 +59,18 @@ configuration = {
     "ad_nested_groups": parse_bool(auth["GITEA_AUTH_NESTED_GROUPS"]),
 }
 
+
+def smarthost_available():
+    try:
+        smtp = agent.get_smarthost_settings(agent.redis_connect(use_replica=True))
+    except Exception:
+        return False
+    return bool(smtp.get("enabled")) and bool(str(smtp.get("host", "")).strip())
+
+
+configuration["smarthost_mail"] = setup_mode == "managed" and parse_bool(
+    setup_environment.get("GITEA_MAIL_SMARTHOST", "false")
+)
+configuration["smarthost_available"] = smarthost_available()
+
 json.dump(configuration, fp=sys.stdout)

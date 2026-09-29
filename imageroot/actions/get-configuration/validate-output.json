@@ -10,6 +10,9 @@
       "lets_encrypt": true,
       "ssh_port": 20001,
       "setup_mode": "managed",
+      "mailer_from": "",
+      "smarthost_mail": true,
+      "smarthost_available": true,
       "ad_enabled": true,
       "ad_domain": "ad.domain.org",
       "ad_user_group": "gitea-user",
@@ -26,6 +29,8 @@
     "ssh_port",
     "setup_mode",
     "mailer_from",
+    "smarthost_mail",
+    "smarthost_available",
     "ad_enabled",
     "ad_domain",
     "ad_user_group",
@@ -64,6 +69,14 @@
     "mailer_from": {
       "type": "string",
       "title": "Gitea mail sender address"
+    },
+    "smarthost_mail": {
+      "type": "boolean",
+      "title": "Gitea mail is sent through the NS8 smarthost"
+    },
+    "smarthost_available": {
+      "type": "boolean",
+      "title": "The node provides an enabled NS8 smarthost"
     },
     "ad_enabled": {
       "type": "boolean",

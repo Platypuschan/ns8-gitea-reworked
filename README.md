@@ -9,7 +9,8 @@ The module provides:
 - Gitea over HTTPS through the NS8 Traefik instance
 - Git over SSH on a second, dynamically allocated NS8 TCP port
 - PostgreSQL 15 with persistent application and database volumes
-- integration with the NS8 smarthost and backup framework
+- integration with the NS8 backup framework and optional mail through the
+  NS8 smarthost
 - a one-time choice between Gitea's web installer and NS8-managed setup
 - private-by-default access settings in managed setup mode
 - optional, managed Active Directory login through an NS8 account domain
@@ -37,14 +38,14 @@ To install from the command line, use a released version number from
 [`CATALOG_VERSION`](CATALOG_VERSION) or the catalog, for example:
 
 ```bash
-add-module ghcr.io/platypuschan/gitea-reworked:0.1.1 1
+add-module ghcr.io/platypuschan/gitea-reworked:0.2.0 1
 ```
 
 The command returns the instance ID, for example `gitea-reworked1`.
 
 Do not install production instances from `:latest` or a branch tag. NS8 takes
 the displayed module version from the image tag and offers updates only to
-instances with a SemVer version such as `0.1.1`; an instance installed from
+instances with a SemVer version such as `0.2.0`; an instance installed from
 `:latest` never receives update notifications.
 
 An instance upgraded from the original module can retain an older ID such as
@@ -109,9 +110,9 @@ EOF
 Open the configured Gitea URL immediately and complete the installer. Until it
 is completed, anyone with network access can create the first administrator
 account. NS8 continues to own the PostgreSQL connection, HTTPS route, SSH port,
-smarthost, and backups; do not replace the module-provided database settings.
-Gitea owns user creation, authentication sources, and application security
-settings in this mode. The module does not create the recovery administrator
+and backups; do not replace the module-provided database settings.
+Gitea owns user creation, authentication sources, mail, and application
+security settings in this mode. The module does not create the recovery administrator
 and does not manage an Active Directory source.
 
 ## Active Directory login
@@ -236,7 +237,7 @@ or from the command line with the new version number:
 
 ```bash
 api-cli run update-module --data '{
-  "module_url": "ghcr.io/platypuschan/gitea-reworked:0.1.1",
+  "module_url": "ghcr.io/platypuschan/gitea-reworked:0.2.0",
   "instances": ["gitea-reworked1"]
 }'
 ```
@@ -253,11 +254,15 @@ migration is automatic:
 - the existing web port is preserved
 - one additional NS8 TCP port is allocated for Git SSH
 - the SSH port is opened in the node firewall
-- the canonical public Gitea URL and smarthost variables are corrected
+- the canonical public Gitea URL is corrected
 - existing instances are assigned managed setup mode for compatibility
 - the web installer is locked and a recovery administrator is ensured
 - existing managed AD settings are preserved and reconciled
 - existing PostgreSQL data remains on major version 15
+
+Since 0.2.0, mail through the NS8 smarthost is opt-in. Updating from 0.1.x
+disables Gitea mail; enable **Send Gitea email through the NS8 smarthost** in
+the module settings if you need it (see [Mail and smarthost](#mail-and-smarthost)).
 
 Gitea applies its own schema migrations during startup. Wait for the Status
 page to report a healthy service before allowing users to push again.
@@ -296,16 +301,29 @@ PostgreSQL service required by the backup hook. If downtime is not acceptable,
 at minimum schedule backups for a period with no repository pushes, attachment
 uploads, package writes, or administrative changes.
 
-## Smarthost
+## Mail and smarthost
 
-Mailer settings are discovered from the centralized NS8 smarthost
-configuration. Changes to the cluster smarthost regenerate the managed Gitea
-mailer environment and restart the application container. When the smarthost is
-enabled, the sender defaults to `no-reply@<Gitea hostname>` instead of using
-the SMTP login name, which may not be a valid email address. Set **Gitea mail
-sender** in the module settings if the relay only accepts a particular sender.
-This setting applies in both setup modes and overrides a sender entered in the
-Gitea web installer while the NS8 smarthost is enabled.
+In managed setup mode, Gitea sends mail only if **Send Gitea email through the
+NS8 smarthost** is enabled in the module settings (`"smarthost_mail": true`).
+The option is off for new instances and after updating from 0.1.x.
+
+- **Enabled:** the module takes host, port, encryption, and credentials from
+  the NS8 smarthost. Changes to the cluster smarthost restart the Gitea
+  container with the new values. The sender defaults to
+  `no-reply@<Gitea hostname>` instead of the SMTP login name, which may not be a
+  valid email address; set **Gitea mail sender** if the relay only accepts a
+  particular sender.
+- **Disabled, or no smarthost available:** the Gitea mailer is disabled and its
+  host, user, and password are cleared from `app.ini`. This also applies when a
+  backup is restored to a cluster without a smarthost, or when the smarthost
+  settings cannot be read at startup; mail is never sent with settings left
+  over from another system.
+
+In manual setup mode the module does not change Gitea's mail settings.
+Configure mail in the web installer or in `app.ini`. The option is not
+available in this mode. Manual instances configured with 0.1.x keep the
+smarthost values that release wrote to `app.ini` until you change them in
+Gitea.
 
 If a backup is restored or an instance is cloned into a cluster without its
 configured AD domain, Gitea still starts with the local recovery administrator

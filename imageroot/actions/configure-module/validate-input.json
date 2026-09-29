@@ -9,6 +9,7 @@
             "http2https": true,
             "lets_encrypt": true,
             "setup_mode": "managed",
+            "smarthost_mail": true,
             "ad_enabled": true,
             "ad_domain": "ad.domain.org",
             "ad_user_group": "gitea-user",
@@ -46,10 +47,16 @@
             "description": "Choose Gitea's web installer or NS8-managed initialization. The choice is immutable after the first successful configuration.",
             "enum": ["manual", "managed"]
         },
+        "smarthost_mail": {
+            "type": "boolean",
+            "title": "Send Gitea mail through the NS8 smarthost",
+            "description": "Managed setup only. When disabled, or when the node has no smarthost, the Gitea mailer is disabled and its connection settings are cleared.",
+            "default": false
+        },
         "mailer_from": {
             "type": "string",
             "title": "Gitea mail sender address",
-            "description": "Optional sender email address. Empty uses no-reply@<Gitea hostname>.",
+            "description": "Optional sender email address used with the NS8 smarthost. Empty uses no-reply@<Gitea hostname>.",
             "maxLength": 254
         },
         "ad_enabled": {
@@ -98,7 +105,8 @@
             },
             "then": {
                 "properties": {
-                    "ad_enabled": {"const": false}
+                    "ad_enabled": {"const": false},
+                    "smarthost_mail": {"const": false}
                 }
             }
         },

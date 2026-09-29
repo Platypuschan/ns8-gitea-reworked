@@ -329,17 +329,53 @@
                 </template>
               </cv-accordion-item>
             </cv-accordion>
-            <cv-text-input
-              :label="$t('settings.mailer_from')"
-              :placeholder="`no-reply@${host || 'gitea.example.org'}`"
-              v-model.trim="mailerFrom"
-              class="mg-bottom"
-              :invalid-message="$t(error.mailer_from)"
-              :disabled="loading.getConfiguration || loading.configureModule"
-              ref="mailer_from"
-            >
-            </cv-text-input>
-            <p class="field-help">{{ $t("settings.mailer_from_help") }}</p>
+            <div v-if="setupMode === 'managed'" class="mail-settings">
+              <h3>{{ $t("settings.mail_title") }}</h3>
+              <p class="section-description">
+                {{ $t("settings.mail_description") }}
+              </p>
+              <cv-toggle
+                value="smarthostMail"
+                :label="$t('settings.smarthost_mail')"
+                v-model="isSmarthostMailEnabled"
+                :disabled="loading.getConfiguration || loading.configureModule"
+                class="mg-bottom"
+              >
+                <template slot="text-left">{{
+                  $t("settings.disabled")
+                }}</template>
+                <template slot="text-right">{{
+                  $t("settings.enabled")
+                }}</template>
+              </cv-toggle>
+              <template v-if="isSmarthostMailEnabled">
+                <NsInlineNotification
+                  v-if="!isSmarthostAvailable"
+                  kind="warning"
+                  :title="$t('settings.smarthost_unavailable_title')"
+                  :description="$t('settings.smarthost_unavailable')"
+                  :showCloseButton="false"
+                />
+                <cv-text-input
+                  :label="$t('settings.mailer_from')"
+                  :placeholder="`no-reply@${host || 'gitea.example.org'}`"
+                  v-model.trim="mailerFrom"
+                  class="mg-bottom"
+                  :invalid-message="$t(error.mailer_from)"
+                  :disabled="
+                    loading.getConfiguration || loading.configureModule
+                  "
+                  ref="mailer_from"
+                >
+                </cv-text-input>
+                <p class="field-help">
+                  {{ $t("settings.mailer_from_help") }}
+                </p>
+              </template>
+            </div>
+            <p v-else-if="setupMode === 'manual'" class="field-help">
+              {{ $t("settings.mail_manual_help") }}
+            </p>
             <!-- advanced options -->
             <cv-accordion class="maxwidth mg-bottom">
               <cv-accordion-item>
@@ -447,6 +483,8 @@ export default {
       urlCheckInterval: null,
       host: "",
       mailerFrom: "",
+      isSmarthostMailEnabled: false,
+      isSmarthostAvailable: false,
       sshPort: 0,
       setupMode: "",
       setupModeState: "pending",
@@ -559,6 +597,8 @@ export default {
       const config = taskResult.output;
       this.host = config.host;
       this.mailerFrom = config.mailer_from;
+      this.isSmarthostMailEnabled = config.smarthost_mail;
+      this.isSmarthostAvailable = config.smarthost_available;
       this.sshPort = config.ssh_port;
       this.setupModeState = config.setup_mode;
       this.setupMode = config.setup_mode === "pending" ? "" : config.setup_mode;
@@ -597,6 +637,8 @@ export default {
         isValidationOk = false;
       }
       if (
+        this.setupMode === "managed" &&
+        this.isSmarthostMailEnabled &&
         this.mailerFrom &&
         (this.mailerFrom.length > 254 ||
           !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(
@@ -697,6 +739,8 @@ export default {
             http2https: this.isHttpToHttpsEnabled,
             setup_mode: this.setupMode,
             mailer_from: this.mailerFrom,
+            smarthost_mail:
+              this.setupMode === "managed" && this.isSmarthostMailEnabled,
             ad_enabled: this.setupMode === "managed" && this.isAdEnabled,
             ad_domain: this.adDomain,
             ad_user_group: this.adUserGroup,
@@ -933,6 +977,7 @@ export default {
 
 .setup-settings,
 .ad-settings,
+.mail-settings,
 .recovery-settings {
   max-width: 38rem;
   margin: $spacing-07 0;
