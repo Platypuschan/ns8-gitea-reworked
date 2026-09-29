@@ -7,6 +7,7 @@
 
 import json
 import os
+import re
 import sys
 
 import agent
@@ -46,6 +47,7 @@ try:
 except FileNotFoundError:
     # A missing marker identifies an instance created by an older release.
     # Preserve the behavior that release already applied.
+    setup = {}
     current_setup_mode = "managed"
 
 agent.assert_exp(
@@ -68,6 +70,23 @@ agent.assert_exp(
     "The Gitea setup mode is fixed after the first configuration.",
 )
 setup_mode = requested_setup_mode
+
+# An omitted field comes from a legacy client or a restore/clone request.
+# Preserve the configured sender in that case; an empty value resets it to
+# the default address based on the application hostname.
+mailer_from = setup.get("GITEA_MAILER_FROM", "")
+if "mailer_from" in data:
+    mailer_from = str(data["mailer_from"]).strip()
+agent.assert_exp(
+    not mailer_from
+    or (len(mailer_from) <= 254 and re.fullmatch(
+        r"[A-Za-z0-9._%+-]+@[A-Za-z0-9]"
+        r"(?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9]"
+        r"(?:[A-Za-z0-9-]*[A-Za-z0-9])?)+",
+        mailer_from,
+    )),
+    "Enter a valid email address for the Gitea mail sender.",
+)
 
 try:
     gitea = agent.read_envfile("gitea.env")
@@ -169,11 +188,17 @@ else:
 
 enabled = setup_mode == "managed" and parse_bool(auth.get("GITEA_AUTH_ENABLED"))
 domain = auth.get("GITEA_AUTH_DOMAIN", "").strip()
-agent.bind_user_domains([domain] if enabled and domain else [], check=True)
+agent.bind_user_domains(
+    [domain] if enabled and domain else [],
+    check=bool(auth_fields.intersection(data)),
+)
 
 # Persist the one-time choice only after validation and the strict cluster
 # domain binding have succeeded. A rejected first request must remain retryable.
-agent.write_envfile(SETUP_ENV_FILE, {"GITEA_SETUP_MODE": setup_mode})
+agent.write_envfile(
+    SETUP_ENV_FILE,
+    {"GITEA_SETUP_MODE": setup_mode, "GITEA_MAILER_FROM": mailer_from},
+)
 os.chmod(SETUP_ENV_FILE, 0o600)
 agent.write_envfile("gitea.env", gitea)
 os.chmod("gitea.env", 0o600)

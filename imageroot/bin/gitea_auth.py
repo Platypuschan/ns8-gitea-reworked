@@ -9,9 +9,11 @@
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import fcntl
 import ipaddress
+import json
 import os
 import secrets
 import subprocess
@@ -408,6 +410,28 @@ def ensure_recovery_admin() -> None:
             staged_credentials.unlink(missing_ok=True)
 
 
+def recovery_password_is_active(password: str) -> bool:
+    """Resolve an ambiguous CLI failure without exposing the password in logs."""
+
+    port = os.environ.get("TCP_PORT", "").strip()
+    if not port.isdigit():
+        return False
+    credential = base64.b64encode(
+        f"{RECOVERY_USERNAME}:{password}".encode("utf-8")
+    ).decode("ascii")
+    request = urllib.request.Request(f"http://127.0.0.1:{port}/api/v1/user")
+    request.add_header("Authorization", f"Basic {credential}")
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            user = json.load(response)
+        return (
+            isinstance(user, dict)
+            and str(user.get("login", "")).casefold() == RECOVERY_USERNAME.casefold()
+        )
+    except (OSError, urllib.error.URLError, ValueError, TypeError):
+        return False
+
+
 def reset_recovery_password() -> None:
     """Replace and persist the managed recovery administrator password."""
 
@@ -421,20 +445,29 @@ def reset_recovery_password() -> None:
     password = generate_recovery_password()
     staged_credentials = stage_recovery_credentials(password)
     try:
-        run_gitea(
-            [
-                "admin",
-                "user",
-                "change-password",
-                "--username",
-                RECOVERY_USERNAME,
-                "--password",
-                password,
-                "--must-change-password=false",
-            ],
-            secrets=(password,),
-            redact_stdout=True,
-        )
+        try:
+            run_gitea(
+                [
+                    "admin",
+                    "user",
+                    "change-password",
+                    "--username",
+                    RECOVERY_USERNAME,
+                    "--password",
+                    password,
+                    "--must-change-password=false",
+                ],
+                secrets=(password,),
+                redact_stdout=True,
+            )
+        except ReconcileError as exc:
+            # The command can time out after Gitea has committed the change.
+            # Verify the new credential before deciding whether to discard it.
+            if not recovery_password_is_active(password):
+                raise ReconcileError(
+                    f"{exc} If the old password no longer works, repeat the "
+                    "reset once Gitea is reachable."
+                ) from None
         commit_recovery_credentials(staged_credentials)
     finally:
         staged_credentials.unlink(missing_ok=True)
@@ -738,12 +771,16 @@ def reconcile() -> None:
 
     try:
         settings = resolve_ad_settings(config)
-    except DomainUnavailableError:
+    except DomainUnavailableError as exc:
         # If the domain was removed from NS8, do not leave a stale managed
         # source enabled. Other transient LDAP errors preserve the last known
         # working configuration so Gitea can recover when AD comes back.
         disable_managed_source(sources)
-        raise
+        # A restored or cloned module can refer to a domain that has not yet
+        # been installed in the target cluster. Keep the recovery account and
+        # web route usable; a later domain event retries reconciliation.
+        print(f"Gitea managed AD login is inactive: {exc}", file=sys.stderr)
+        return
     apply_managed_source(sources, settings)
 
 
