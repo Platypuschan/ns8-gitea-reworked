@@ -60,7 +60,16 @@ agent.assert_exp(
 )
 agent.write_envfile(
     SETUP_ENV_FILE,
-    {"GITEA_SETUP_MODE": setup_mode, "GITEA_MAILER_FROM": setup.get("GITEA_MAILER_FROM", "")},
+    {
+        "GITEA_SETUP_MODE": setup_mode,
+        "GITEA_MAILER_FROM": setup.get("GITEA_MAILER_FROM", ""),
+        # Releases before 0.2.0 used the NS8 smarthost automatically. Mail
+        # through it is now opt-in, also for existing instances.
+        "GITEA_MAIL_SMARTHOST": str(
+            setup_mode == "managed"
+            and parse_bool(setup.get("GITEA_MAIL_SMARTHOST", "false"))
+        ).lower(),
+    },
 )
 os.chmod(SETUP_ENV_FILE, 0o600)
 

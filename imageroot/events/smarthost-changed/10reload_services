@@ -6,4 +6,11 @@
 #
 
 set -Eeuo pipefail
+
+# Only managed instances that opted in use the NS8 smarthost.
+if ! grep -qx 'GITEA_SETUP_MODE=managed' gitea-setup.env 2>/dev/null ||
+   ! grep -qx 'GITEA_MAIL_SMARTHOST=true' gitea-setup.env 2>/dev/null; then
+    exit 0
+fi
+
 systemctl --user try-restart gitea-app.service
