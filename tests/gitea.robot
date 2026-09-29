@@ -103,6 +103,14 @@ Check automated initial setup
     Should Be Equal As Integers    ${users_rc}    0    Cannot list Gitea users: ${users}
     Should Contain    ${users}    ns8-recovery-admin
 
+Check Gitea mail is disabled unless enabled in the settings
+    ${mail}    ${mail_rc} =    Execute Command    runagent -m ${module_id} grep -Fx 'GITEA__mailer__ENABLED=false' smarthost.env
+    ...    return_rc=True
+    Should Be Equal As Integers    ${mail_rc}    0    Gitea mail is not disabled: ${mail}
+    ${passwd}    ${passwd_rc} =    Execute Command    runagent -m ${module_id} podman exec gitea-app grep -Ex 'PASSWD *= *' /data/gitea/conf/app.ini
+    ...    return_rc=True
+    Should Be Equal As Integers    ${passwd_rc}    0    SMTP password was not cleared in app.ini: ${passwd}
+
 Check recovery administrator credentials
     ${reset_output}    ${reset_rc} =    Execute Command    api-cli run module/${module_id}/reset-recovery-password --data '{}'
     ...    return_rc=True
@@ -168,6 +176,9 @@ Manual setup exposes Gitea web installer
     ${override}    ${override_rc} =    Execute Command    runagent -m ${manual_module_id} grep -F 'GITEA__security__INSTALL_LOCK' gitea.env
     ...    return_rc=True
     Should Not Be Equal As Integers    ${override_rc}    0    Manual setup must not override INSTALL_LOCK: ${override}
+    ${mail_rc} =    Execute Command    runagent -m ${manual_module_id} bash -c '! grep -q ^GITEA__mailer__ smarthost.env'
+    ...    return_rc=True    return_stdout=False
+    Should Be Equal As Integers    ${mail_rc}    0    Manual setup must leave the Gitea mailer unmanaged
     ${reset_rc} =    Execute Command    api-cli run module/${manual_module_id}/reset-recovery-password --data '{}'
     ...    return_rc=True    return_stdout=False
     Should Not Be Equal As Integers    ${reset_rc}    0
