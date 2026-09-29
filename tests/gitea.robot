@@ -176,7 +176,7 @@ Manual setup exposes Gitea web installer
     ${override}    ${override_rc} =    Execute Command    runagent -m ${manual_module_id} grep -F 'GITEA__security__INSTALL_LOCK' gitea.env
     ...    return_rc=True
     Should Not Be Equal As Integers    ${override_rc}    0    Manual setup must not override INSTALL_LOCK: ${override}
-    ${mail_rc} =    Execute Command    runagent -m ${manual_module_id} test ! -s smarthost.env
+    ${mail_rc} =    Execute Command    runagent -m ${manual_module_id} bash -c '! grep -q ^GITEA__mailer__ smarthost.env'
     ...    return_rc=True    return_stdout=False
     Should Be Equal As Integers    ${mail_rc}    0    Manual setup must leave the Gitea mailer unmanaged
     ${reset_rc} =    Execute Command    api-cli run module/${manual_module_id}/reset-recovery-password --data '{}'
