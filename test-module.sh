@@ -10,14 +10,15 @@ set -Eeuo pipefail
 LEADER_NODE="${1:?missing leader node address}"
 IMAGE_URL="${2:?missing module image URL}"
 SCENARIO="${3:?missing test scenario}"
+BASELINE_IMAGE="${BASELINE_IMAGE:-}"
 SSH_KEYFILE="${SSH_KEYFILE:-${HOME}/.ssh/id_ecdsa}"
 RUNNER_IMAGE="ghcr.io/marketsquare/robotframework-browser/rfbrowser-stable:19.11.0"
 CONTAINER_NAME="rf-gitea-${SCENARIO}"
 
 case "${SCENARIO}" in
-    install|update) ;;
+    install|update|upgrade) ;;
     *)
-        echo "Unsupported test scenario '${SCENARIO}'; expected install or update." >&2
+        echo "Unsupported test scenario '${SCENARIO}'; expected install, update or upgrade." >&2
         exit 64
         ;;
 esac
@@ -28,7 +29,12 @@ if [[ ! -r "${SSH_KEYFILE}" ]]; then
 fi
 
 SSH_PRIVATE_KEY="$(<"${SSH_KEYFILE}")"
-export IMAGE_URL LEADER_NODE SCENARIO SSH_PRIVATE_KEY
+if [[ "${SCENARIO}" == "upgrade" && -z "${BASELINE_IMAGE}" ]]; then
+    echo "The upgrade scenario needs BASELINE_IMAGE." >&2
+    exit 64
+fi
+
+export BASELINE_IMAGE IMAGE_URL LEADER_NODE SCENARIO SSH_PRIVATE_KEY
 
 cleanup() {
     podman rm --force "${CONTAINER_NAME}" >/dev/null 2>&1 || true
@@ -42,6 +48,7 @@ podman run --interactive \
     --name "${CONTAINER_NAME}" \
     --replace \
     --volume "${PWD}:/home/pwuser/ns8-module:z" \
+    --env BASELINE_IMAGE \
     --env IMAGE_URL \
     --env LEADER_NODE \
     --env SCENARIO \
@@ -57,7 +64,12 @@ pip install --quiet --disable-pip-version-check \
     robotframework-sshlibrary==3.8.0
 
 cd /home/pwuser/ns8-module
+baseline_args=()
+if [[ -n "${BASELINE_IMAGE}" ]]; then
+    baseline_args=(-v "BASELINE_IMAGE:${BASELINE_IMAGE}")
+fi
 exec robot \
+    "${baseline_args[@]}" \
     -v "NODE_ADDR:${LEADER_NODE}" \
     -v "IMAGE_URL:${IMAGE_URL}" \
     -v "SSH_KEYFILE:/home/pwuser/ns8-key" \

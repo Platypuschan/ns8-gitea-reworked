@@ -1,3 +1,4 @@
+import contextlib
 import importlib.util
 import os
 import stat
@@ -276,6 +277,24 @@ class RecoveryAccountTests(unittest.TestCase):
         commit.assert_not_called()
         staged.unlink.assert_called_once_with(missing_ok=True)
 
+    def test_ambiguous_timeout_commits_password_if_gitea_accepts_it(self):
+        staged = mock.Mock()
+        password = "new-recovery-password-with-enough-entropy"
+        with (
+            mock.patch.object(gitea_auth, "read_setup_mode", return_value="managed"),
+            mock.patch.object(gitea_auth, "wait_for_gitea"),
+            mock.patch.object(gitea_auth, "ensure_recovery_admin"),
+            mock.patch.object(gitea_auth, "generate_recovery_password", return_value=password),
+            mock.patch.object(gitea_auth, "stage_recovery_credentials", return_value=staged),
+            mock.patch.object(gitea_auth, "run_gitea", side_effect=gitea_auth.ReconcileError("timed out")),
+            mock.patch.object(gitea_auth, "recovery_password_is_active", return_value=True) as verify,
+            mock.patch.object(gitea_auth, "commit_recovery_credentials") as commit,
+        ):
+            gitea_auth.reset_recovery_password()
+        verify.assert_called_once_with(password)
+        commit.assert_called_once_with(staged)
+        staged.unlink.assert_called_once_with(missing_ok=True)
+
     def test_credentials_file_is_atomic_and_owner_only(self):
         class FakeAgent(types.ModuleType):
             @staticmethod
@@ -343,6 +362,39 @@ class SetupModeTests(unittest.TestCase):
                 read_auth.assert_not_called()
                 wait.assert_not_called()
                 recovery.assert_not_called()
+
+    def test_missing_domain_disables_stale_source_without_failing_restore(self):
+        config = gitea_auth.config_from_environment(
+            {
+                "GITEA_AUTH_ENABLED": "true",
+                "GITEA_AUTH_SOURCE_MANAGED": "true",
+                "GITEA_AUTH_DOMAIN": "ad.example.test",
+            }
+        )
+        sources = [{"id": "1", "name": gitea_auth.MANAGED_SOURCE_NAME,
+                    "type": "LDAP (via BindDN)", "enabled": "true"}]
+        with (
+            mock.patch.object(gitea_auth, "read_setup_mode", return_value="managed"),
+            mock.patch.object(gitea_auth, "read_auth_config", return_value=config),
+            mock.patch.object(gitea_auth, "wait_for_gitea"),
+            mock.patch.object(gitea_auth, "ensure_recovery_admin") as recovery,
+            mock.patch.object(gitea_auth, "list_auth_sources", return_value=sources),
+            mock.patch.object(
+                gitea_auth,
+                "resolve_ad_settings",
+                side_effect=gitea_auth.DomainUnavailableError("AD domain unavailable"),
+            ),
+            mock.patch.object(gitea_auth, "run_gitea") as run,
+            mock.patch.object(
+                gitea_auth, "authentication_lock", return_value=contextlib.nullcontext()
+            ),
+        ):
+            self.assertEqual(gitea_auth.main(), 0)
+        recovery.assert_called_once_with()
+        run.assert_called_once_with(
+            ["admin", "auth", "update-ldap", "--id", "1", "--not-active",
+             "--disable-synchronize-users"]
+        )
 
 
 if __name__ == "__main__":

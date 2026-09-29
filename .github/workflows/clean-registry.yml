@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: Registry
     steps:
-      - uses: NethServer/ns8-github-actions/.github/actions/delete-image@v1
+      - uses: NethServer/ns8-github-actions/.github/actions/delete-image@1f7be3c6e4791a978df9c0a0454e9a8fea8d211a # v1
         with:
           images: "gitea-reworked"
           delete_image_token: ${{ secrets.IMAGES_CLEANUP_TOKEN }}

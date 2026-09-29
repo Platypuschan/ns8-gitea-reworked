@@ -16,6 +16,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 CREATE_SCRIPT = ROOT / "imageroot/actions/create-module/10configure_environment_vars"
 CONFIGURE_SCRIPT = ROOT / "imageroot/actions/configure-module/10configure_environment_vars"
+SMARTHOST_SCRIPT = ROOT / "imageroot/bin/discover-smarthost"
+DOMAIN_EVENT_SCRIPT = ROOT / "imageroot/events/user-domain-changed/10reconcile_auth"
 MIGRATION_SCRIPT = ROOT / "imageroot/bin/migrate-environment"
 RESTORE_SCRIPT = ROOT / "imageroot/actions/restore-module/40restore_database"
 RESTORE_RECONCILE_SCRIPT = (
@@ -33,6 +35,13 @@ class FakeAgent(types.ModuleType):
         self.allocations = []
         self.public_services = []
         self.bound_domains = []
+        self.smtp = {"enabled": False}
+
+    def redis_connect(self, use_replica=False):
+        return None
+
+    def get_smarthost_settings(self, rdb):
+        return self.smtp
 
     @staticmethod
     def assert_exp(expression, message=""):
@@ -171,7 +180,7 @@ class PortAllocationTests(unittest.TestCase):
             self.assertEqual(gitea["GITEA__security__INSTALL_LOCK"], "true")
             self.assertEqual(
                 agent.files["gitea-setup.env"],
-                {"GITEA_SETUP_MODE": "managed"},
+                {"GITEA_SETUP_MODE": "managed", "GITEA_MAILER_FROM": ""},
             )
             self.assertEqual(
                 stat.S_IMODE((state / "gitea-setup.env").stat().st_mode),
@@ -241,7 +250,7 @@ class PortAllocationTests(unittest.TestCase):
             )
             self.assertEqual(
                 agent.files["gitea-setup.env"],
-                {"GITEA_SETUP_MODE": "managed"},
+                {"GITEA_SETUP_MODE": "managed", "GITEA_MAILER_FROM": ""},
             )
             self.assertEqual(
                 agent.files["gitea-auth.env"],
@@ -294,9 +303,50 @@ class PortAllocationTests(unittest.TestCase):
         )
         self.assertEqual(
             agent.files["gitea-setup.env"],
-            {"GITEA_SETUP_MODE": "managed"},
+            {"GITEA_SETUP_MODE": "managed", "GITEA_MAILER_FROM": ""},
         )
-        self.assertEqual(agent.bound_domains, [(["ad.example.test"], True)])
+        self.assertEqual(agent.bound_domains, [(["ad.example.test"], False)])
+
+    def test_restore_with_missing_ad_domain_keeps_configuration_retryable(self):
+        class MissingDomainAgent(FakeAgent):
+            def bind_user_domains(self, domains, check=False):
+                super().bind_user_domains(domains, check=check)
+                if domains and check:
+                    raise AssertionError("domain missing from target cluster")
+
+        agent = MissingDomainAgent()
+        agent.files["gitea-setup.env"] = {
+            "GITEA_SETUP_MODE": "managed",
+            "GITEA_MAILER_FROM": "git@example.test",
+        }
+        agent.files["gitea-auth.env"] = {
+            "GITEA_AUTH_ENABLED": "true",
+            "GITEA_AUTH_DOMAIN": "ad.example.test",
+        }
+        request = {"host": "git.example.test", "http2https": True, "lets_encrypt": False}
+        with isolated_state(agent, {"SSH_TCP_PORT": "25000"}, json.dumps(request)):
+            runpy.run_path(str(CONFIGURE_SCRIPT), run_name="__main__")
+        self.assertEqual(agent.bound_domains, [(["ad.example.test"], False)])
+        self.assertEqual(agent.files["gitea-setup.env"]["GITEA_MAILER_FROM"], "git@example.test")
+        self.assertEqual(agent.files["gitea-auth.env"]["GITEA_AUTH_ENABLED"], "true")
+
+        request.update({"ad_enabled": True, "ad_domain": "ad.example.test"})
+        with isolated_state(agent, {"SSH_TCP_PORT": "25000"}, json.dumps(request)):
+            with self.assertRaisesRegex(AssertionError, "domain missing"):
+                runpy.run_path(str(CONFIGURE_SCRIPT), run_name="__main__")
+        self.assertEqual(agent.bound_domains[-1], (["ad.example.test"], True))
+
+    def test_mail_sender_rejects_envfile_line_injection_before_writing(self):
+        agent = FakeAgent()
+        request = {
+            "host": "git.example.test",
+            "setup_mode": "managed",
+            "mailer_from": "git@example.test\nGITEA_SETUP_MODE=manual",
+        }
+        with isolated_state(agent, {"SSH_TCP_PORT": "25000"}, json.dumps(request)):
+            with self.assertRaisesRegex(AssertionError, "valid email address"):
+                runpy.run_path(str(CONFIGURE_SCRIPT), run_name="__main__")
+        self.assertNotIn("gitea-setup.env", agent.files)
 
     def test_manual_setup_leaves_installer_and_authentication_unmanaged(self):
         agent = FakeAgent()
@@ -326,7 +376,7 @@ class PortAllocationTests(unittest.TestCase):
 
             self.assertEqual(
                 agent.files["gitea-setup.env"],
-                {"GITEA_SETUP_MODE": "manual"},
+                {"GITEA_SETUP_MODE": "manual", "GITEA_MAILER_FROM": ""},
             )
             for key in (
                 "GITEA__service__DISABLE_REGISTRATION",
@@ -435,7 +485,7 @@ class PortAllocationTests(unittest.TestCase):
             self.assertNotIn(key, agent.files["gitea.env"])
         self.assertEqual(
             agent.files["gitea-setup.env"],
-            {"GITEA_SETUP_MODE": "manual"},
+            {"GITEA_SETUP_MODE": "manual", "GITEA_MAILER_FROM": ""},
         )
         self.assertEqual(
             agent.files["gitea-auth.env"]["GITEA_AUTH_ENABLED"],
@@ -455,7 +505,54 @@ class PortAllocationTests(unittest.TestCase):
         self.assertIn("state/gitea-recovery.env", state_include)
 
 
+class SmarthostTests(unittest.TestCase):
+    def test_sender_is_valid_without_a_mailbox_smtp_username(self):
+        agent = FakeAgent()
+        agent.smtp = {
+            "enabled": True,
+            "host": "relay.example.test",
+            "port": 587,
+            "username": "relayuser",
+            "password": "secret",
+        }
+        with isolated_state(agent, {"TRAEFIK_HOST": "git.example.test"}) as state:
+            runpy.run_path(str(SMARTHOST_SCRIPT), run_name="__main__")
+            self.assertEqual(
+                agent.files["smarthost.env.tmp"]["GITEA__mailer__FROM"],
+                "no-reply@git.example.test",
+            )
+            self.assertEqual(stat.S_IMODE((state / "smarthost.env").stat().st_mode), 0o600)
+
+    def test_custom_sender_survives_mailer_discovery(self):
+        agent = FakeAgent()
+        agent.smtp = {"enabled": True, "username": "", "password": ""}
+        agent.files["gitea-setup.env"] = {
+            "GITEA_SETUP_MODE": "manual",
+            "GITEA_MAILER_FROM": "mail@example.test",
+        }
+        with isolated_state(agent, {"TRAEFIK_HOST": "git.example.test"}):
+            runpy.run_path(str(SMARTHOST_SCRIPT), run_name="__main__")
+        self.assertEqual(agent.files["smarthost.env.tmp"]["GITEA__mailer__FROM"], "mail@example.test")
+
+    def test_disabled_smarthost_does_not_override_gitea_mail_sender(self):
+        agent = FakeAgent()
+        with isolated_state(agent, {"TRAEFIK_HOST": "git.example.test"}):
+            runpy.run_path(str(SMARTHOST_SCRIPT), run_name="__main__")
+        self.assertEqual(agent.files["smarthost.env.tmp"], {"GITEA__mailer__ENABLED": "false"})
+
+
 class BackupRestoreTests(unittest.TestCase):
+    def test_added_domain_retries_binding_after_restore(self):
+        agent = FakeAgent()
+        agent.files["gitea-auth.env"] = {
+            "GITEA_AUTH_ENABLED": "true",
+            "GITEA_AUTH_DOMAIN": "ad.example.test",
+        }
+        with isolated_state(agent, {}, json.dumps({"domains": ["ad.example.test"]})):
+            with mock.patch("subprocess.run", return_value=mock.Mock(returncode=1)):
+                runpy.run_path(str(DOMAIN_EVENT_SCRIPT), run_name="__main__")
+        self.assertEqual(agent.bound_domains, [(["ad.example.test"], False)])
+
     def test_update_and_restore_wait_for_authentication_reconciliation(self):
         for script in (UPDATE_RECONCILE_SCRIPT, RESTORE_RECONCILE_SCRIPT):
             with self.subTest(script=script):

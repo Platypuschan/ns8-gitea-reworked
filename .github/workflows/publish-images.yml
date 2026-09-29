@@ -17,11 +17,11 @@ concurrency:
 jobs:
   publish-images:
     if: github.run_number > 1
-    uses: NethServer/ns8-github-actions/.github/workflows/publish-branch.yml@v1
+    uses: NethServer/ns8-github-actions/.github/workflows/publish-branch.yml@1f7be3c6e4791a978df9c0a0454e9a8fea8d211a # v1
 
   module:
     needs: publish-images
-    uses: NethServer/ns8-github-actions/.github/workflows/module-info.yml@v1
+    uses: NethServer/ns8-github-actions/.github/workflows/module-info.yml@1f7be3c6e4791a978df9c0a0454e9a8fea8d211a # v1
 
   qemu:
     name: "NS8 ${{ matrix.distro }} / ${{ matrix.scenario }}"
@@ -46,6 +46,14 @@ jobs:
             scenario: update
             script: test-module-update.sh
             cloud_image_url: "https://laotzu.ftp.acc.umu.se/images/cloud/trixie/20260914-2601/debian-13-genericcloud-amd64-20260914-2601.qcow2"
+          - distro: rocky9
+            scenario: upgrade
+            script: test-module-upgrade.sh
+            cloud_image_url: ""
+          - distro: debian13
+            scenario: upgrade
+            script: test-module-upgrade.sh
+            cloud_image_url: "https://laotzu.ftp.acc.umu.se/images/cloud/trixie/20260914-2601/debian-13-genericcloud-amd64-20260914-2601.qcow2"
     permissions:
       contents: read
     uses: stephdl/ns8-ci-actions/.github/workflows/test-on-qemu.yml@3726dd2374c4fd2a267345d4ac975388a4bed7af
@@ -58,9 +66,57 @@ jobs:
       script: ${{ matrix.script }}
       timeout_minutes: 60
 
+  published-digest:
+    name: Resolve published image digest
+    needs: module
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - id: digest
+        env:
+          IMAGE: ${{ needs.module.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+          command -v skopeo >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y skopeo; }
+          digest="$(skopeo inspect --format '{{.Digest}}' "docker://$IMAGE")"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  tested-image:
+    name: Record tested image digest
+    needs: [module, published-digest, qemu]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Confirm the tag still points to the tested build
+        env:
+          IMAGE: ${{ needs.module.outputs.image }}
+          DIGEST: ${{ needs.published-digest.outputs.digest }}
+          SHA: ${{ needs.module.outputs.sha }}
+        run: |
+          set -Eeuo pipefail
+          command -v skopeo >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y skopeo; }
+          current="$(skopeo inspect --format '{{.Digest}}' "docker://$IMAGE")"
+          if [[ "$current" != "$DIGEST" ]]; then
+            echo "::error::$IMAGE moved from $DIGEST to $current during the tests" >&2
+            exit 1
+          fi
+          printf 'IMAGE=%s\nDIGEST=%s\nSHA=%s\n' "${IMAGE%:*}" "$DIGEST" "$SHA" > tested-image.env
+          echo "Tested ${IMAGE%:*}@$DIGEST from commit $SHA" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tested-image
+          path: tested-image.env
+          if-no-files-found: error
+          retention-days: 30
+
   trivy:
     needs: module
     if: ${{ needs.module.outputs.release == 'stable' || needs.module.outputs.release == 'latest' || github.event_name == 'workflow_dispatch' }}
-    uses: NethServer/ns8-github-actions/.github/workflows/scan-with-trivy.yml@v1
+    uses: NethServer/ns8-github-actions/.github/workflows/scan-with-trivy.yml@1f7be3c6e4791a978df9c0a0454e9a8fea8d211a # v1
     with:
       images: ${{ needs.module.outputs.images }}

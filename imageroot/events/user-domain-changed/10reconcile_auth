@@ -33,6 +33,11 @@ if (
 ):
     sys.exit(0)
 
+# A restore into a cluster without this domain cannot bind it yet. Retry the
+# NS8 domain relation when the domain is added; reconciliation below then
+# activates the managed source if the application is running.
+agent.bind_user_domains([domain], check=False)
+
 if subprocess.run(
     ["systemctl", "--user", "is-active", "--quiet", "gitea-app.service"],
     check=False,
