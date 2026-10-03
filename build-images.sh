@@ -13,7 +13,7 @@ reponame="gitea-reworked"
 
 # Keep runtime images pinned: upgrades are reviewed and tested through Renovate PRs.
 postgres_image="docker.io/library/postgres:15.19-alpine3.23"
-gitea_image="docker.gitea.com/gitea:1.27.3"
+gitea_image="docker.gitea.com/gitea:28.0.0"
 node_image="docker.io/library/node:24.20.0-slim"
 
 container="$(buildah from scratch)"

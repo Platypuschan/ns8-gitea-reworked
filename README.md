@@ -20,7 +20,7 @@ The module provides:
 Runtime images are deliberately pinned in `build-images.sh` and updated only
 through reviewed changes:
 
-- Gitea 1.27.3
+- Gitea 28.0.0
 - PostgreSQL 15.19 (Alpine 3.23)
 - Node.js 24.20.0 for the reproducible UI build
 
