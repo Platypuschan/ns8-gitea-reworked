@@ -33,7 +33,6 @@ nodebuilder="$(buildah from -v "${PWD}:/usr/src:Z" "${node_image}")"
 echo "Building static UI files..."
 buildah run \
     --workingdir=/usr/src/ui \
-    --env="NODE_OPTIONS=--openssl-legacy-provider" \
     "${nodebuilder}" \
     sh -c "corepack enable && yarn install --immutable && yarn build"
 

@@ -38,7 +38,7 @@ To install from the command line, use a released version number from
 [`CATALOG_VERSION`](CATALOG_VERSION) or the catalog, for example:
 
 ```bash
-add-module ghcr.io/platypuschan/gitea-reworked:0.3.1 1
+add-module ghcr.io/platypuschan/gitea-reworked:0.4.1 1
 ```
 
 The command returns the instance ID, for example `gitea-reworked1`.
@@ -236,7 +236,7 @@ or from the command line with the new version number:
 
 ```bash
 api-cli run update-module --data '{
-  "module_url": "ghcr.io/platypuschan/gitea-reworked:0.3.1",
+  "module_url": "ghcr.io/platypuschan/gitea-reworked:0.4.1",
   "instances": ["gitea-reworked1"]
 }'
 ```
