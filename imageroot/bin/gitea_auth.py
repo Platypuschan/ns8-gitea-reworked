@@ -103,12 +103,7 @@ def read_auth_config() -> AuthConfig:
 def read_setup_mode() -> str:
     import agent
 
-    try:
-        values = agent.read_envfile(SETUP_ENV_FILE)
-    except FileNotFoundError:
-        # Instances from releases without a setup marker already use managed
-        # initialization and must retain that behavior after an update.
-        return "managed"
+    values = agent.read_envfile(SETUP_ENV_FILE)
     mode = values.get("GITEA_SETUP_MODE", "").strip().lower()
     if mode not in {"pending", "manual", "managed"}:
         raise ReconcileError("The stored Gitea setup mode is invalid.")

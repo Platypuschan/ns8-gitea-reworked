@@ -4,7 +4,9 @@ Library    String
 
 *** Variables ***
 ${IMAGE_URL}         ghcr.io/platypuschan/gitea-reworked:latest
-${BASELINE_IMAGE}    ghcr.io/geniusdynamics/gitea:latest
+# The upgrade scenario starts from the last published release of this module;
+# test-module-upgrade.sh looks it up in the registry.
+${BASELINE_IMAGE}    ${EMPTY}
 ${SCENARIO}          install
 ${HOST}              gitea.test
 ${MANUAL_HOST}       gitea-manual.test
@@ -50,7 +52,7 @@ Login to cluster-admin
 
 *** Test Cases ***
 Add module for ${SCENARIO} scenario
-    IF    r'${SCENARIO}' in ('update', 'upgrade')
+    IF    r'${SCENARIO}' == 'upgrade'
         Set Local Variable    ${install_image}    ${BASELINE_IMAGE}
     ELSE
         Set Local Variable    ${install_image}    ${IMAGE_URL}
@@ -62,11 +64,7 @@ Add module for ${SCENARIO} scenario
     Set Suite Variable    ${module_id}    ${output.module_id}
 
 Configure module
-    IF    r'${SCENARIO}' in ('install', 'upgrade')
-        ${configure_data} =    Set Variable    {"host":"${HOST}","http2https":true,"lets_encrypt":false,"setup_mode":"managed"}
-    ELSE
-        ${configure_data} =    Set Variable    {"host":"${HOST}","http2https":true,"lets_encrypt":false}
-    END
+    ${configure_data} =    Set Variable    {"host":"${HOST}","http2https":true,"lets_encrypt":false,"setup_mode":"managed"}
     ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '${configure_data}'
     ...    return_rc=True    return_stdout=False
     Should Be Equal As Integers    ${rc}    0
@@ -77,11 +75,7 @@ Configure module
 
 Update module
     Log    Scenario ${SCENARIO} with ${IMAGE_URL}    console=${True}
-    IF    r'${SCENARIO}' == 'update'
-        ${output}    ${rc} =    Execute Command    api-cli run update-module --data '{"force":true,"module_url":"${IMAGE_URL}","instances":["${module_id}"]}'
-        ...    return_rc=True
-        Should Be Equal As Integers    ${rc}    0    action update-module ${IMAGE_URL} failed: ${output}
-    ELSE IF    r'${SCENARIO}' == 'upgrade'
+    IF    r'${SCENARIO}' == 'upgrade'
         # Released version to the image under test, without force, as Software Center does.
         ${output}    ${rc} =    Execute Command    api-cli run update-module --data '{"module_url":"${IMAGE_URL}","instances":["${module_id}"]}'
         ...    return_rc=True
