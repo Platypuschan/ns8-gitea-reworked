@@ -46,11 +46,7 @@ def parse_bool(value):
 
 
 def read_setup():
-    try:
-        return agent.read_envfile(SETUP_ENV_FILE)
-    except FileNotFoundError:
-        # Instances from releases without the marker used managed setup.
-        return {"GITEA_SETUP_MODE": "managed"}
+    return agent.read_envfile(SETUP_ENV_FILE)
 
 
 def smarthost_config(setup):

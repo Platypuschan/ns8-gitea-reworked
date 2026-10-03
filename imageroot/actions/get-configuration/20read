@@ -30,12 +30,8 @@ def parse_bool(value):
 
 
 ssh_port = os.environ.get("SSH_TCP_PORT", "")
-try:
-    setup_environment = agent.read_envfile("gitea-setup.env")
-    setup_mode = setup_environment.get("GITEA_SETUP_MODE", "").strip().lower()
-except FileNotFoundError:
-    setup_environment = {}
-    setup_mode = "managed"
+setup_environment = agent.read_envfile("gitea-setup.env")
+setup_mode = setup_environment.get("GITEA_SETUP_MODE", "").strip().lower()
 agent.assert_exp(setup_mode in SETUP_MODES, "The stored Gitea setup mode is invalid.")
 
 try:
