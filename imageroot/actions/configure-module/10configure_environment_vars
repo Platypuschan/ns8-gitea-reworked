@@ -41,14 +41,8 @@ data = json.load(sys.stdin)
 host = data["host"].strip().rstrip(".")
 ssh_port = os.environ["SSH_TCP_PORT"]
 
-try:
-    setup = agent.read_envfile(SETUP_ENV_FILE)
-    current_setup_mode = setup.get("GITEA_SETUP_MODE", "").strip().lower()
-except FileNotFoundError:
-    # A missing marker identifies an instance created by an older release.
-    # Preserve the behavior that release already applied.
-    setup = {}
-    current_setup_mode = "managed"
+setup = agent.read_envfile(SETUP_ENV_FILE)
+current_setup_mode = setup.get("GITEA_SETUP_MODE", "").strip().lower()
 
 agent.assert_exp(
     current_setup_mode in SETUP_MODES | {"pending"},
@@ -105,13 +99,6 @@ try:
     gitea = agent.read_envfile("gitea.env")
 except FileNotFoundError:
     gitea = {}
-
-# These values were managed by older module versions. Smarthost settings are
-# now regenerated independently in smarthost.env.
-gitea.pop("LOCAL_ROOT_URL", None)
-for key in list(gitea):
-    if key.startswith("GITEA__mailer__"):
-        del gitea[key]
 
 gitea.update(
     {
