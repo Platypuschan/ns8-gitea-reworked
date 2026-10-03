@@ -38,18 +38,17 @@ To install from the command line, use a released version number from
 [`CATALOG_VERSION`](CATALOG_VERSION) or the catalog, for example:
 
 ```bash
-add-module ghcr.io/platypuschan/gitea-reworked:0.2.0 1
+add-module ghcr.io/platypuschan/gitea-reworked:0.3.0 1
 ```
 
 The command returns the instance ID, for example `gitea-reworked1`.
 
 Do not install production instances from `:latest` or a branch tag. NS8 takes
 the displayed module version from the image tag and offers updates only to
-instances with a SemVer version such as `0.2.0`; an instance installed from
+instances with a SemVer version such as `0.3.0`; an instance installed from
 `:latest` never receives update notifications.
 
-An instance upgraded from the original module can retain an older ID such as
-`gitea1`; always use the actual instance ID returned by NS8.
+Always use the actual instance ID returned by NS8.
 
 ## Configure
 
@@ -237,7 +236,7 @@ or from the command line with the new version number:
 
 ```bash
 api-cli run update-module --data '{
-  "module_url": "ghcr.io/platypuschan/gitea-reworked:0.2.0",
+  "module_url": "ghcr.io/platypuschan/gitea-reworked:0.3.0",
   "instances": ["gitea-reworked1"]
 }'
 ```
@@ -248,21 +247,10 @@ version; afterwards the Software Center offers new catalog versions again.
 `force` is only needed for moving development tags such as `:latest`, because
 it makes NS8 pull the image again even if the tag is already present locally.
 
-When updating an instance created by the original one-port module, the
-migration is automatic:
-
-- the existing web port is preserved
-- one additional NS8 TCP port is allocated for Git SSH
-- the SSH port is opened in the node firewall
-- the canonical public Gitea URL is corrected
-- existing instances are assigned managed setup mode for compatibility
-- the web installer is locked and a recovery administrator is ensured
-- existing managed AD settings are preserved and reconciled
-- existing PostgreSQL data remains on major version 15
-
-Since 0.2.0, mail through the NS8 smarthost is opt-in. Updating from 0.1.x
-disables Gitea mail; enable **Send Gitea email through the NS8 smarthost** in
-the module settings if you need it (see [Mail and smarthost](#mail-and-smarthost)).
+Updates and restores are supported from the base version **0.2.0** onward.
+Older releases of this module and the original NS8 Gitea module
+(`geniusdynamics/gitea`) cannot be updated to it, and their backups cannot be
+restored. Install a new instance instead.
 
 Gitea applies its own schema migrations during startup. Wait for the Status
 page to report a healthy service before allowing users to push again.
@@ -346,10 +334,10 @@ The repository runs:
 
 - syntax validation for Python, JSON, shell scripts, and current systemd state
   paths
-- unit tests for AD filters, safe source adoption, configuration migration,
+- unit tests for AD filters, safe source adoption, configuration handling,
   and recovery-account handling
 - deterministic Yarn install, UI lint, and production UI build
-- the official NS8 install and update scenarios on supported test nodes
+- the NS8 install scenario on supported test nodes
 - an upgrade from the newest released catalog version to the tested image,
   without `force`, as the Software Center performs it
 - HTTPS health checks and an SSH protocol-banner check on the allocated port

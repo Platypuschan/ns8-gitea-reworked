@@ -16,9 +16,9 @@ RUNNER_IMAGE="ghcr.io/marketsquare/robotframework-browser/rfbrowser-stable:19.11
 CONTAINER_NAME="rf-gitea-${SCENARIO}"
 
 case "${SCENARIO}" in
-    install|update|upgrade) ;;
+    install|upgrade) ;;
     *)
-        echo "Unsupported test scenario '${SCENARIO}'; expected install, update or upgrade." >&2
+        echo "Unsupported test scenario '${SCENARIO}'; expected install or upgrade." >&2
         exit 64
         ;;
 esac
