@@ -142,6 +142,10 @@ Take screenshots
     Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/1._Status.png
     Go To    https://${NODE_ADDR}/cluster-admin/#/apps/${module_id}?page=settings
     Wait For Elements State    iframe >>> h2 >> text="Settings"    visible    timeout=20s
+    # The heading renders even when module tasks fail; the host field is only
+    # enabled and filled after get-configuration has completed
+    Wait For Elements State    iframe >>> input[placeholder="gitea.example.org"]    enabled    timeout=30s
+    Get Property    iframe >>> input[placeholder="gitea.example.org"]    value    ==    ${HOST}
     Sleep    3s
     Take Screenshot    filename=${OUTPUT DIR}/browser/screenshot/2._Settings.png
     Close Browser
