@@ -4,8 +4,8 @@ Library    String
 
 *** Variables ***
 ${IMAGE_URL}         ghcr.io/platypuschan/gitea-reworked:latest
-# The upgrade scenario starts from the last published release of this module;
-# test-module-upgrade.sh looks it up in the registry.
+# The update scenario starts from the last published release of this module;
+# test-module-update.sh looks it up in the registry.
 ${BASELINE_IMAGE}    ${EMPTY}
 ${SCENARIO}          install
 ${HOST}              gitea.test
@@ -52,7 +52,7 @@ Login to cluster-admin
 
 *** Test Cases ***
 Add module for ${SCENARIO} scenario
-    IF    r'${SCENARIO}' == 'upgrade'
+    IF    r'${SCENARIO}' == 'update'
         Set Local Variable    ${install_image}    ${BASELINE_IMAGE}
     ELSE
         Set Local Variable    ${install_image}    ${IMAGE_URL}
@@ -75,7 +75,7 @@ Configure module
 
 Update module
     Log    Scenario ${SCENARIO} with ${IMAGE_URL}    console=${True}
-    IF    r'${SCENARIO}' == 'upgrade'
+    IF    r'${SCENARIO}' == 'update'
         # Released version to the image under test, without force, as Software Center does.
         ${output}    ${rc} =    Execute Command    api-cli run update-module --data '{"module_url":"${IMAGE_URL}","instances":["${module_id}"]}'
         ...    return_rc=True

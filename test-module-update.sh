@@ -55,8 +55,8 @@ print(max(released)[1])
 PY
 )"
 
-echo "Upgrade scenario: ${image}:${previous} -> ${IMAGE_URL}"
+echo "Update scenario: ${image}:${previous} -> ${IMAGE_URL}"
 BASELINE_IMAGE="${image}:${previous}" exec bash ./test-module.sh \
     "${1:?missing leader node address}" \
     "${IMAGE_URL}" \
-    upgrade
+    update

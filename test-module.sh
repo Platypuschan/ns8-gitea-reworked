@@ -16,9 +16,9 @@ RUNNER_IMAGE="ghcr.io/marketsquare/robotframework-browser/rfbrowser-stable:19.11
 CONTAINER_NAME="rf-gitea-${SCENARIO}"
 
 case "${SCENARIO}" in
-    install|upgrade) ;;
+    install|update) ;;
     *)
-        echo "Unsupported test scenario '${SCENARIO}'; expected install or upgrade." >&2
+        echo "Unsupported test scenario '${SCENARIO}'; expected install or update." >&2
         exit 64
         ;;
 esac
@@ -29,8 +29,8 @@ if [[ ! -r "${SSH_KEYFILE}" ]]; then
 fi
 
 SSH_PRIVATE_KEY="$(<"${SSH_KEYFILE}")"
-if [[ "${SCENARIO}" == "upgrade" && -z "${BASELINE_IMAGE}" ]]; then
-    echo "The upgrade scenario needs BASELINE_IMAGE." >&2
+if [[ "${SCENARIO}" == "update" && -z "${BASELINE_IMAGE}" ]]; then
+    echo "The update scenario needs BASELINE_IMAGE." >&2
     exit 64
 fi
 
