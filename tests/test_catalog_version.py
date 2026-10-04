@@ -8,17 +8,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECK_SCRIPT = ROOT / ".github/scripts/check-catalog-version"
+PREVIOUS_SCRIPT = ROOT / ".github/scripts/previous-release"
 
 
-def load_check_module():
-    loader = importlib.machinery.SourceFileLoader("check_catalog_version", str(CHECK_SCRIPT))
+def load_script(name, path):
+    loader = importlib.machinery.SourceFileLoader(name, str(path))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
     return module
 
 
-check_version = load_check_module()
+check_version = load_script("check_catalog_version", CHECK_SCRIPT)
+previous_release = load_script("previous_release", PREVIOUS_SCRIPT)
 
 
 class VersionParsingTest(unittest.TestCase):
@@ -105,6 +107,23 @@ class ReleaseCheckTest(unittest.TestCase):
         self.commit("invalid")
         with self.assertRaises(check_version.VersionError):
             self.check("main")
+
+
+class PreviousReleaseTest(unittest.TestCase):
+    TAGS = ["latest", "main", "sha256-abc", "0.1.0", "0.2.0", "0.2.1", "0.3.0-rc.1", "0.10.0"]
+
+    def test_unpublished_version_starts_from_newest_release(self):
+        self.assertEqual(previous_release.newest_release(self.TAGS, "0.2.2"), "0.2.1")
+
+    def test_published_version_is_its_own_baseline(self):
+        self.assertEqual(previous_release.newest_release(self.TAGS, "0.2.1"), "0.2.1")
+
+    def test_orders_numerically_and_skips_newer_and_prereleases(self):
+        self.assertEqual(previous_release.newest_release(self.TAGS, "0.3.0"), "0.2.1")
+        self.assertEqual(previous_release.newest_release(self.TAGS, "1.0.0"), "0.10.0")
+
+    def test_no_release_returns_none(self):
+        self.assertIsNone(previous_release.newest_release(["latest", "0.3.0"], "0.2.0"))
 
 
 if __name__ == "__main__":

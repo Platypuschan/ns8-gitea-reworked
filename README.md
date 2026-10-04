@@ -338,8 +338,10 @@ The repository runs:
   and recovery-account handling
 - deterministic Yarn install, UI lint, and production UI build
 - the NS8 install scenario on supported test nodes
-- an update scenario from the newest released catalog version to the tested image,
-  without `force`, as the Software Center performs it
+- an update scenario from the last published release to the tested image,
+  without `force`, as the Software Center performs it.
+  `.github/scripts/previous-release` looks that release up in GHCR: the newest
+  stable tag that is not newer than `CATALOG_VERSION`.
 - HTTPS health checks and an SSH protocol-banner check on the allocated port
 
 To run the Robot Framework tests against a live NS8 leader, install
