@@ -338,7 +338,7 @@ The repository runs:
   and recovery-account handling
 - deterministic Yarn install, UI lint, and production UI build
 - the NS8 install scenario on supported test nodes
-- an upgrade from the newest released catalog version to the tested image,
+- an update scenario from the newest released catalog version to the tested image,
   without `force`, as the Software Center performs it
 - HTTPS health checks and an SSH protocol-banner check on the allocated port
 
