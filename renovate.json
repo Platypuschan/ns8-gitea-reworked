@@ -2,11 +2,32 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["local>NethServer/.github:ns8"],
   "automerge": false,
+  "packageRules": [
+    {
+      "description": "A PostgreSQL major upgrade needs a dump/restore migration in the module; never propose it as a tag bump",
+      "matchDatasources": ["docker"],
+      "matchDepNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "The reusable workflows are pinned to commits of the v1 branch, which Renovate looks up as a tag and cannot resolve; they are updated by hand",
+      "matchDepNames": ["NethServer/ns8-github-actions"],
+      "enabled": false
+    },
+    {
+      "description": "Group minor and patch UI updates into one PR; each image change needs one CATALOG_VERSION bump",
+      "matchDatasources": ["npm"],
+      "matchFileNames": ["ui/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "UI dependencies"
+    }
+  ],
   "customManagers": [
     {
       "customType": "regex",
       "description": "Track the official Gitea container image",
-      "fileMatch": ["(^|/)build-images\\.sh$"],
+      "managerFilePatterns": ["/(^|/)build-images\\.sh$/"],
       "matchStrings": [
         "gitea_image=\"(?<depName>docker\\.gitea\\.com/gitea):(?<currentValue>[-0-9A-Za-z_.]+)\""
       ],
