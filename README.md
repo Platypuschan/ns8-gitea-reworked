@@ -20,7 +20,7 @@ The module provides:
 Runtime images are deliberately pinned in `build-images.sh` and updated only
 through reviewed changes:
 
-- Gitea 28.0.0
+- Gitea 28.2.0
 - PostgreSQL 15.19 (Alpine 3.23)
 - Node.js 24.20.0 for the reproducible UI build
 
@@ -38,7 +38,7 @@ To install from the command line, use a released version number from
 [`CATALOG_VERSION`](CATALOG_VERSION) or the catalog, for example:
 
 ```bash
-add-module ghcr.io/platypuschan/gitea-reworked:0.4.2 1
+add-module ghcr.io/platypuschan/gitea-reworked:0.4.3 1
 ```
 
 The command returns the instance ID, for example `gitea-reworked1`.
@@ -236,7 +236,7 @@ or from the command line with the new version number:
 
 ```bash
 api-cli run update-module --data '{
-  "module_url": "ghcr.io/platypuschan/gitea-reworked:0.4.2",
+  "module_url": "ghcr.io/platypuschan/gitea-reworked:0.4.3",
   "instances": ["gitea-reworked1"]
 }'
 ```
