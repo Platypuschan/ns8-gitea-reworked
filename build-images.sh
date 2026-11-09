@@ -34,7 +34,7 @@ echo "Building static UI files..."
 buildah run \
     --workingdir=/usr/src/ui \
     "${nodebuilder}" \
-    sh -c "corepack enable && yarn install --immutable && yarn build"
+    sh -c "npm install --global corepack && corepack enable && yarn install --immutable && yarn build"
 
 buildah add "${container}" imageroot /imageroot
 buildah add "${container}" ui/dist /ui
