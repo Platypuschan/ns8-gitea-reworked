@@ -1,5 +1,6 @@
-FROM node:24.22.2-bookworm
-RUN corepack enable
+FROM node:26.12.1-bookworm
+# Node.js 25+ no longer bundles Corepack
+RUN npm install --global corepack && corepack enable
 WORKDIR /app
 EXPOSE 8080
 ENTRYPOINT ["./container-entrypoint.sh"]

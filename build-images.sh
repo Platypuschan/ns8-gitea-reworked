@@ -14,7 +14,7 @@ reponame="gitea-reworked"
 # Keep runtime images pinned: upgrades are reviewed and tested through Renovate PRs.
 postgres_image="docker.io/library/postgres:15.19-alpine3.23"
 gitea_image="docker.gitea.com/gitea:28.3.0"
-node_image="docker.io/library/node:24.22.2-slim"
+node_image="docker.io/library/node:26.12.1-slim"
 
 container="$(buildah from scratch)"
 nodebuilder=""
@@ -34,7 +34,7 @@ echo "Building static UI files..."
 buildah run \
     --workingdir=/usr/src/ui \
     "${nodebuilder}" \
-    sh -c "corepack enable && yarn install --immutable && yarn build"
+    sh -c "npm install --global corepack && corepack enable && yarn install --immutable && yarn build"
 
 buildah add "${container}" imageroot /imageroot
 buildah add "${container}" ui/dist /ui
