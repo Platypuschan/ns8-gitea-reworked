@@ -1,37 +1,189 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>NethServer/.github:ns8"],
+  "extends": [
+    "local>NethServer/.github:ns8"
+  ],
   "automerge": false,
   "packageRules": [
     {
       "description": "A PostgreSQL major upgrade needs a dump/restore migration in the module; never propose it as a tag bump",
-      "matchDatasources": ["docker"],
-      "matchDepNames": ["postgres"],
-      "matchUpdateTypes": ["major"],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchDepNames": [
+        "postgres"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
       "enabled": false
     },
     {
       "description": "The reusable workflows are pinned to commits of the v1 branch, which Renovate looks up as a tag and cannot resolve; they are updated by hand",
-      "matchDepNames": ["NethServer/ns8-github-actions"],
+      "matchDepNames": [
+        "NethServer/ns8-github-actions"
+      ],
       "enabled": false
     },
     {
       "description": "Group minor and patch UI updates into one PR; each image change needs one CATALOG_VERSION bump",
-      "matchDatasources": ["npm"],
-      "matchFileNames": ["ui/**"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchDatasources": [
+        "npm"
+      ],
+      "matchFileNames": [
+        "ui/**"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "groupName": "UI dependencies"
+    },
+    {
+      "description": "Gitea, PostgreSQL, Node.js builder and UI dependencies end up in the module image: every update raises CATALOG_VERSION (the Validate workflow requires it) and therefore releases a new catalog version after merge",
+      "matchDepNames": [
+        "docker.gitea.com/gitea",
+        "postgres",
+        "node"
+      ],
+      "bumpVersions": [
+        {
+          "name": "Raise the module catalog version",
+          "filePatterns": [
+            "CATALOG_VERSION"
+          ],
+          "matchStrings": [
+            "^(?<version>\\d+\\.\\d+\\.\\d+)\\s*$"
+          ],
+          "bumpType": "patch"
+        }
+      ]
+    },
+    {
+      "matchManagers": [
+        "npm"
+      ],
+      "matchFileNames": [
+        "ui/**"
+      ],
+      "bumpVersions": [
+        {
+          "name": "Raise the module catalog version",
+          "filePatterns": [
+            "CATALOG_VERSION"
+          ],
+          "matchStrings": [
+            "^(?<version>\\d+\\.\\d+\\.\\d+)\\s*$"
+          ],
+          "bumpType": "patch"
+        }
+      ]
+    },
+    {
+      "description": "Gitea patch releases (mostly security fixes): merge automatically once all checks incl. the QEMU install/update tests are green. A merge to main publishes the tested version to the catalog; instances still update through the Software Center",
+      "matchDepNames": [
+        "docker.gitea.com/gitea"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "commitMessageTopic": "Gitea",
+      "automerge": true,
+      "automergeType": "pr",
+      "ignoreTests": false
+    },
+    {
+      "description": "Gitea minor releases bring migrations and config changes: PR only, merged after reading the release notes; major releases are approved from the dependency dashboard",
+      "matchDepNames": [
+        "docker.gitea.com/gitea"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "commitMessageTopic": "Gitea",
+      "automerge": false
+    },
+    {
+      "matchDepNames": [
+        "docker.gitea.com/gitea"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
+      "description": "One Node.js PR for builder image, UI Containerfile and CI; stay on the current major (a new major needs approval from the dependency dashboard)",
+      "matchDepNames": [
+        "node"
+      ],
+      "groupName": "Node.js",
+      "automerge": false
+    },
+    {
+      "matchDepNames": [
+        "node"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
+      "description": "GitHub Actions only touch CI and never the module image: group minor/patch/digest updates and merge them once the checks are green; majors stay manual",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pin",
+        "pinDigest"
+      ],
+      "groupName": "GitHub Actions",
+      "automerge": true,
+      "automergeType": "pr",
+      "ignoreTests": false
+    },
+    {
+      "description": "CI runner images are not moved to a new Ubuntu release automatically",
+      "matchDepNames": [
+        "ubuntu"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false
     }
   ],
   "customManagers": [
     {
       "customType": "regex",
       "description": "Track the official Gitea container image",
-      "managerFilePatterns": ["/(^|/)build-images\\.sh$/"],
+      "managerFilePatterns": [
+        "/(^|/)build-images\\.sh$/"
+      ],
       "matchStrings": [
         "gitea_image=\"(?<depName>docker\\.gitea\\.com/gitea):(?<currentValue>[-0-9A-Za-z_.]+)\""
       ],
       "datasourceTemplate": "docker"
     }
-  ]
+  ],
+  "timezone": "Europe/Berlin",
+  "labels": [
+    "dependencies"
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "ignoreDeps": [
+      "vue"
+    ],
+    "minimumReleaseAge": null
+  }
 }
