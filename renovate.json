@@ -132,7 +132,7 @@
       "automerge": false
     },
     {
-      "description": "GitHub Actions only touch CI and never the module image: group minor/patch/digest updates and merge them once the checks are green; majors stay manual",
+      "description": "GitHub Actions only touch CI and never the module image: group minor/patch/digest updates and merge them once the checks are green; majors stay manual. The Node.js version used by setup-node belongs to the Node.js group (image change)",
       "matchManagers": [
         "github-actions"
       ],
@@ -146,7 +146,10 @@
       "groupName": "GitHub Actions",
       "automerge": true,
       "automergeType": "pr",
-      "ignoreTests": false
+      "ignoreTests": false,
+      "excludeDepNames": [
+        "node"
+      ]
     },
     {
       "description": "CI runner images are not moved to a new Ubuntu release automatically",
