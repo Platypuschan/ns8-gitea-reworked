@@ -147,8 +147,8 @@
       "automerge": true,
       "automergeType": "pr",
       "ignoreTests": false,
-      "excludeDepNames": [
-        "node"
+      "matchDepNames": [
+        "!node"
       ]
     },
     {
