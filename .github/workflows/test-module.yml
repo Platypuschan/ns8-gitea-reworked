@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   module:
-    uses: NethServer/ns8-github-actions/.github/workflows/module-info.yml@1f7be3c6e4791a978df9c0a0454e9a8fea8d211a # v1
+    uses: NethServer/ns8-github-actions/.github/workflows/module-info.yml@e35baed847065163e5fcb2fe396c968aa413827b # v1
 
   qemu:
     # Static: a skipped job shows its name with the matrix expressions
@@ -28,7 +28,7 @@ jobs:
     permissions:
       contents: read
       statuses: write
-    uses: NethServer/ns8-github-actions/.github/workflows/test-on-qemu.yml@01bf3cbb0039bfb2ed1a0ecc0c3683dbaa96d86a # v1
+    uses: NethServer/ns8-github-actions/.github/workflows/test-on-qemu.yml@e35baed847065163e5fcb2fe396c968aa413827b # v1
     with:
       distro: ${{ matrix.distro }}
       image_url: ${{ needs.module.outputs.image }}
