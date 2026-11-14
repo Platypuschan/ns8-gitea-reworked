@@ -8,15 +8,21 @@ on:
 permissions:
   actions: read
   contents: read
-  packages: write
+
+# Serialize all promotions, including reruns. Never cancel a partial publication.
+concurrency:
+  group: catalog-promotion
+  cancel-in-progress: false
 
 jobs:
   promote:
     if: >-
+      github.repository == 'Platypuschan/ns8-gitea-reworked' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main'
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: write
@@ -26,109 +32,28 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
+          persist-credentials: false
       - name: Check catalog version
-        run: .github/scripts/check-catalog-version
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        run: python3 .github/scripts/check-catalog-version
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: tested-image
+          name: tested-image-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
           run-id: ${{ github.event.workflow_run.id }}
+          repository: ${{ github.repository }}
           github-token: ${{ github.token }}
-      - name: Promote the tested image once
+          path: promotion-record
+      - name: Promote the tested digest and reconcile its release
         shell: bash
         env:
+          TESTED_REPOSITORY: ${{ github.repository }}
+          TESTED_RUN_ID: ${{ github.event.workflow_run.id }}
+          TESTED_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
-          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          current_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
-          if [[ "$current_sha" != "$TESTED_SHA" ]]; then
-            echo 'A newer main commit exists; its test run will publish the version.'
-            exit 0
-          fi
-
-          tested_image="$(sed -n 's/^IMAGE=//p' tested-image.env)"
-          tested_digest="$(sed -n 's/^DIGEST=//p' tested-image.env)"
-          tested_commit="$(sed -n 's/^SHA=//p' tested-image.env)"
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gitea-reworked"
-          if [[ "$tested_commit" != "$TESTED_SHA" || "$tested_image" != "$image" ||
-                ! "$tested_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "::error::Unexpected tested image record: $(tr '\n' ' ' < tested-image.env)" >&2
-            exit 1
-          fi
-
-          version="$(tr -d '[:space:]' < CATALOG_VERSION)"
-          command -v skopeo >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y skopeo; }
-          if published="$(skopeo inspect --format '{{.Digest}}' "docker://$image:$version" 2>/dev/null)"; then
-            # The version check above passed, so only files outside the image
-            # changed since CATALOG_VERSION was set.
-            echo "::notice::$image:$version already exists ($published); no module image change since that release."
-            exit 0
-          fi
-
-          printf '%s' "$REGISTRY_TOKEN" | skopeo login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
-          skopeo copy --all --preserve-digests "docker://$image@$tested_digest" "docker://$image:$version"
-          published="$(skopeo inspect --format '{{.Digest}}' "docker://$image:$version")"
-          if [[ "$published" != "$tested_digest" ]]; then
-            echo "::error::$image:$version has digest $published, expected $tested_digest" >&2
-            exit 1
-          fi
-          echo "Published $image:$version ($tested_digest) from tested commit $TESTED_SHA" >> "$GITHUB_STEP_SUMMARY"
-      - name: Create the GitHub release of the published version
-        shell: bash
-        env:
-          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          version="$(tr -d '[:space:]' < CATALOG_VERSION)"
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gitea-reworked"
-          if gh release view "$version" >/dev/null 2>&1; then
-            echo "Release $version already exists."
-            exit 0
-          fi
-
           command -v skopeo >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y skopeo; }
+          trap 'skopeo logout ghcr.io >/dev/null' EXIT
           printf '%s' "$GH_TOKEN" | skopeo login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
-          if ! inspect="$(skopeo inspect "docker://$image:$version" 2>&1)"; then
-            if grep -q 'manifest unknown' <<<"$inspect"; then
-              # A newer main commit exists; its run publishes the version.
-              echo "$image:$version is not published yet; no release."
-              exit 0
-            fi
-            echo "$inspect" >&2
-            exit 1
-          fi
-          # The image has no revision label. Tag the tested main commit: the
-          # version check above keeps the image unchanged since CATALOG_VERSION
-          # was set. GITHUB_TOKEN gets HTTP 403 when the tagged commit's
-          # workflow files match no existing ref, as with the older commit
-          # that set the version; the main tip always matches refs/heads/main.
-          if [[ "$(git ls-remote origin refs/heads/main | cut -f1)" != "$TESTED_SHA" ]]; then
-            echo "A newer main commit exists; its run creates the release."
-            exit 0
-          fi
-          revision="$TESTED_SHA"
-          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]] || ! git merge-base --is-ancestor "$revision" "$TESTED_SHA"; then
-            echo "$image:$version has revision '$revision', which is not on main; no release." >&2
-            exit 1
-          fi
-          # An annotated tag is listed twice; its peeled "^{}" line comes last.
-          tag_sha="$(git ls-remote --tags origin "refs/tags/$version" \
-            | awk -v ref="refs/tags/$version" '$2 == ref || $2 == ref "^{}" { sha = $1 } END { print sha }')"
-          if [[ -n "$tag_sha" && "$tag_sha" != "$revision" ]]; then
-            echo "Tag $version points to $tag_sha, but $image:$version was built from $revision." >&2
-            exit 1
-          fi
-
-          args=(--target "$revision" --title "$version" --generate-notes)
-          previous="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName // ""')"
-          if [[ -n "$previous" ]]; then
-            args+=(--notes-start-tag "$previous")
-          fi
-          if [[ "$version" == *-* ]]; then
-            args+=(--prerelease)
-          fi
-          # A tag created with GITHUB_TOKEN triggers no workflow, so this does
-          # not rebuild the image; publish-images also skips existing tags.
-          gh release create "$version" "${args[@]}"
-          echo "Created release $version at $revision" >> "$GITHUB_STEP_SUMMARY"
+          python3 .github/scripts/promote-tested-image promote --record promotion-record/tested-image.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"

@@ -9,7 +9,8 @@ set -Eeuo pipefail
 
 cd "$(dirname "$0")"
 IMAGE_URL="${2:?missing module image URL}"
-BASELINE_IMAGE="$(python3 .github/scripts/previous-release "${IMAGE_URL%:*}")"
+IMAGE_REPOSITORY="${IMAGE_URL%%@*}"
+BASELINE_IMAGE="$(python3 .github/scripts/previous-release "${IMAGE_REPOSITORY%:*}")"
 echo "Update scenario: ${BASELINE_IMAGE} -> ${IMAGE_URL}"
 export BASELINE_IMAGE
 
