@@ -6,6 +6,13 @@
   "automerge": false,
   "packageRules": [
     {
+      "description": "NethServer/ns8-github-actions publishes v1 as a branch, not a tag: pin the workflow commit and look up the new digest as a git ref (otherwise: 'Could not determine new digest for update')",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["NethServer/ns8-github-actions"],
+      "overrideDatasource": "git-refs",
+      "overridePackageName": "https://github.com/NethServer/ns8-github-actions"
+    },
+    {
       "description": "A PostgreSQL major upgrade needs a dump/restore migration in the module; never propose it as a tag bump",
       "matchDatasources": [
         "docker"
