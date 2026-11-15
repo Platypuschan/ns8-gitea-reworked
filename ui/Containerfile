@@ -1,4 +1,4 @@
-FROM node:26.13.0-bookworm
+FROM node:26.13.1-bookworm
 # Node.js 25+ no longer bundles Corepack
 RUN npm install --global corepack && corepack enable
 WORKDIR /app
