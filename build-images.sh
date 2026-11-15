@@ -12,7 +12,7 @@ repobase="${REPOBASE:-ghcr.io/platypuschan}"
 reponame="gitea-reworked"
 
 # Keep runtime images pinned: upgrades are reviewed and tested through Renovate PRs.
-postgres_image="docker.io/library/postgres:15.19-alpine3.23"
+postgres_image="docker.io/library/postgres:15.20-alpine3.23"
 gitea_image="docker.gitea.com/gitea:28.3.0"
 node_image="docker.io/library/node:26.13.0-slim"
 
