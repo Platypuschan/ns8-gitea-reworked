@@ -385,16 +385,103 @@ class SetupModeTests(unittest.TestCase):
                 side_effect=gitea_auth.DomainUnavailableError("AD domain unavailable"),
             ),
             mock.patch.object(gitea_auth, "run_gitea") as run,
+            mock.patch.object(gitea_auth, "reconcile_sso"),
             mock.patch.object(
                 gitea_auth, "authentication_lock", return_value=contextlib.nullcontext()
             ),
         ):
-            self.assertEqual(gitea_auth.main(), 0)
+            self.assertEqual(gitea_auth.main([]), 0)
         recovery.assert_called_once_with()
         run.assert_called_once_with(
             ["admin", "auth", "update-ldap", "--id", "1", "--not-active",
              "--disable-synchronize-users"]
         )
+
+
+REGISTRATION = {
+    "client_id": "gitea-reworked4",
+    "client_secret": "s3cret-value",
+    "issuer": "https://sso.example.test/realms/ad.example.test",
+}
+
+
+class SsoReconcileTests(unittest.TestCase):
+    def reconcile(self, *, enabled=True, applied="", sources=None, run_side_effect=None):
+        config = gitea_auth.SsoConfig(
+            enabled=enabled, idp_module="idp-reworked1", domain="ad.example.test", applied=applied
+        )
+        patches = [
+            mock.patch.object(gitea_auth, "read_sso_config", return_value=config),
+            mock.patch.object(gitea_auth, "list_auth_sources", side_effect=sources),
+            mock.patch.object(gitea_auth, "application_host", return_value="git.example.test"),
+            mock.patch.object(gitea_auth, "register_sso_client", return_value=dict(REGISTRATION)),
+            mock.patch.object(gitea_auth, "run_gitea", side_effect=run_side_effect),
+            mock.patch.object(gitea_auth, "restart_gitea"),
+            mock.patch.object(gitea_auth, "write_sso_applied"),
+        ]
+        mocks = [patch.start() for patch in patches]
+        self.addCleanup(mock.patch.stopall)
+        gitea_auth.reconcile_sso()
+        return dict(zip(["read", "list", "host", "register", "run", "restart", "write"], mocks))
+
+    @staticmethod
+    def source(type_="OAuth2", enabled="true"):
+        return {"id": "7", "name": gitea_auth.SSO_SOURCE_NAME, "type": type_, "enabled": enabled}
+
+    def test_creates_the_source_without_restart(self):
+        m = self.reconcile(sources=[[], [self.source()]])
+        command = m["run"].call_args.args[0]
+        self.assertEqual(command[:3], ["admin", "auth", "add-oauth"])
+        self.assertIn("openidConnect", command)
+        self.assertIn(
+            "https://sso.example.test/realms/ad.example.test/.well-known/openid-configuration", command
+        )
+        self.assertEqual(m["run"].call_args.kwargs["secrets"], ("s3cret-value",))
+        m["restart"].assert_not_called()
+        self.assertEqual(len(m["write"].call_args.args[1]), 64)
+
+    def test_unchanged_registration_changes_nothing(self):
+        first = self.reconcile(sources=[[], [self.source()]])
+        fingerprint = first["write"].call_args.args[1]
+        mock.patch.stopall()
+        second = self.reconcile(applied=fingerprint, sources=[[self.source()]])
+        second["run"].assert_not_called()
+        second["restart"].assert_not_called()
+
+    def test_changed_secret_updates_the_source_and_restarts(self):
+        m = self.reconcile(applied="old", sources=[[self.source()], [self.source()]])
+        command = m["run"].call_args.args[0]
+        self.assertEqual(command[:5], ["admin", "auth", "update-oauth", "--id", "7"])
+        m["restart"].assert_called_once_with()
+
+    def test_incompatible_source_type_is_not_touched(self):
+        with self.assertRaisesRegex(gitea_auth.ReconcileError, "incompatible"):
+            self.reconcile(sources=[[self.source(type_="LDAP (via BindDN)")]])
+
+    def test_disabled_sso_removes_the_source_it_created(self):
+        m = self.reconcile(enabled=False, applied="x", sources=[[self.source()]])
+        m["run"].assert_called_once_with(["admin", "auth", "delete", "--id", "7"])
+        m["register"].assert_not_called()
+        self.assertEqual(m["write"].call_args.args[1], "")
+
+    def test_disabled_sso_leaves_foreign_sources_alone(self):
+        m = self.reconcile(enabled=False, applied="", sources=[[self.source()]])
+        m["run"].assert_not_called()
+
+    def test_idp_failure_is_non_fatal_unless_strict(self):
+        config = gitea_auth.AuthConfig(False, False, "", "", "", "", False)
+        error = gitea_auth.ReconcileError("IdP unavailable")
+        with (
+            mock.patch.object(gitea_auth, "read_setup_mode", return_value="managed"),
+            mock.patch.object(gitea_auth, "read_auth_config", return_value=config),
+            mock.patch.object(gitea_auth, "wait_for_gitea"),
+            mock.patch.object(gitea_auth, "ensure_recovery_admin"),
+            mock.patch.object(gitea_auth, "reconcile_ad"),
+            mock.patch.object(gitea_auth, "reconcile_sso", side_effect=error),
+        ):
+            gitea_auth.reconcile()
+            with self.assertRaises(gitea_auth.ReconcileError):
+                gitea_auth.reconcile(strict_sso=True)
 
 
 if __name__ == "__main__":

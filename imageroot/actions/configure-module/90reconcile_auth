@@ -8,4 +8,4 @@
 set -Eeuo pipefail
 exec 1>&2
 
-reconcile-gitea-auth
+reconcile-gitea-auth --strict-sso

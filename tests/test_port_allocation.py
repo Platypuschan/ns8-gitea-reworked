@@ -517,6 +517,51 @@ class SmarthostTests(unittest.TestCase):
             agent.files["gitea.env"]["GITEA__service__ALLOW_ONLY_EXTERNAL_REGISTRATION"], "false"
         )
 
+    def test_sso_binds_its_domain_next_to_ad_and_keeps_it_for_restore(self):
+        agent = FakeAgent()
+        agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "pending"}
+        self.configure(
+            agent,
+            {
+                "setup_mode": "managed",
+                "sso_enabled": True,
+                "sso_idp_module": "idp-reworked1",
+                "sso_domain": "sso.example.test",
+            },
+        )
+        self.assertEqual(agent.bound_domains[-1][0], ["sso.example.test"])
+        self.assertEqual(agent.files["gitea-sso.env"]["GITEA_SSO_IDP_MODULE"], "idp-reworked1")
+        self.configure(
+            agent,
+            {
+                "ad_enabled": True,
+                "ad_domain": "ad.example.test",
+                "ad_user_group": "u",
+                "ad_admin_group": "a",
+            },
+        )
+        self.assertEqual(
+            agent.bound_domains[-1][0], ["ad.example.test", "sso.example.test"]
+        )
+        # Restore and clone call configure-module without SSO fields.
+        agent.files["gitea-sso.env"]["GITEA_SSO_APPLIED"] = "abc"
+        self.configure(agent, {})
+        self.assertEqual(agent.files["gitea-sso.env"]["GITEA_SSO_ENABLED"], "true")
+        self.assertEqual(agent.files["gitea-sso.env"]["GITEA_SSO_APPLIED"], "abc")
+        self.configure(agent, {"sso_enabled": False})
+        self.assertEqual(agent.files["gitea-sso.env"]["GITEA_SSO_ENABLED"], "false")
+        self.assertNotIn("sso.example.test", agent.bound_domains[-1][0])
+
+    def test_sso_requires_idp_and_domain_and_managed_mode(self):
+        agent = FakeAgent()
+        agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "pending"}
+        with self.assertRaisesRegex(AssertionError, "IdP module and a user domain"):
+            self.configure(agent, {"setup_mode": "managed", "sso_enabled": True})
+        agent = FakeAgent()
+        agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "pending"}
+        with self.assertRaisesRegex(AssertionError, "requires managed setup mode"):
+            self.configure(agent, {"setup_mode": "manual", "sso_enabled": True})
+
     def test_manual_mode_rejects_sso_auto_registration(self):
         agent = FakeAgent()
         agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "pending"}

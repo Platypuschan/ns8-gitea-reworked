@@ -26,17 +26,31 @@ try:
 except FileNotFoundError:
     sys.exit(0)
 
-domain = config.get("GITEA_AUTH_DOMAIN", "").strip()
-if (
-    not parse_bool(config.get("GITEA_AUTH_ENABLED", "false"))
-    or domain not in event.get("domains", [])
-):
+try:
+    sso = agent.read_envfile("gitea-sso.env")
+except FileNotFoundError:
+    sso = {}
+
+ad_domain = config.get("GITEA_AUTH_DOMAIN", "").strip()
+sso_domain = sso.get("GITEA_SSO_DOMAIN", "").strip()
+domains = set()
+if parse_bool(config.get("GITEA_AUTH_ENABLED", "false")) and ad_domain in event.get("domains", []):
+    domains.add(ad_domain)
+if parse_bool(sso.get("GITEA_SSO_ENABLED", "false")) and sso_domain in event.get("domains", []):
+    domains.add(sso_domain)
+if not domains:
     sys.exit(0)
 
 # A restore into a cluster without this domain cannot bind it yet. Retry the
 # NS8 domain relation when the domain is added; reconciliation below then
-# activates the managed source if the application is running.
-agent.bind_user_domains([domain], check=False)
+# activates the managed sources if the application is running. Keep the other
+# configured domain bound as well: binding replaces the whole list.
+bound = set(domains)
+if parse_bool(config.get("GITEA_AUTH_ENABLED", "false")) and ad_domain:
+    bound.add(ad_domain)
+if parse_bool(sso.get("GITEA_SSO_ENABLED", "false")) and sso_domain:
+    bound.add(sso_domain)
+agent.bind_user_domains(sorted(bound), check=False)
 
 if subprocess.run(
     ["systemctl", "--user", "is-active", "--quiet", "gitea-app.service"],
