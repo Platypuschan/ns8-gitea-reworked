@@ -14,6 +14,9 @@
       "smarthost_mail": true,
       "smarthost_available": true,
       "sso_auto_registration": false,
+      "sso_enabled": false,
+      "sso_idp_module": "",
+      "sso_domain": "",
       "ad_enabled": true,
       "ad_domain": "ad.domain.org",
       "ad_user_group": "gitea-user",
@@ -33,6 +36,9 @@
     "smarthost_mail",
     "smarthost_available",
     "sso_auto_registration",
+    "sso_enabled",
+    "sso_idp_module",
+    "sso_domain",
     "ad_enabled",
     "ad_domain",
     "ad_user_group",
@@ -76,6 +82,9 @@
       "type": "boolean",
       "title": "Gitea mail is sent through the NS8 smarthost"
     },
+    "sso_enabled": {"type": "boolean", "title": "SSO through an NS8 IdP module is enabled"},
+    "sso_idp_module": {"type": "string", "title": "IdP module instance"},
+    "sso_domain": {"type": "string", "title": "User domain of the IdP realm"},
     "sso_auto_registration": {
       "type": "boolean",
       "title": "Accounts are created automatically on the first external OIDC login"

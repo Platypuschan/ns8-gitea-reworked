@@ -215,9 +215,37 @@ else:
 
 enabled = setup_mode == "managed" and parse_bool(auth.get("GITEA_AUTH_ENABLED"))
 domain = auth.get("GITEA_AUTH_DOMAIN", "").strip()
+
+# SSO through an NS8 IdP module (idp-reworked). Omitted fields (legacy client,
+# restore, clone) keep the stored choice; Gitea registers its OIDC client
+# itself, so the domain must stay bound for as long as SSO is enabled.
+try:
+    sso = agent.read_envfile("gitea-sso.env")
+except FileNotFoundError:
+    sso = {}
+sso_enabled = parse_bool(sso.get("GITEA_SSO_ENABLED", "false"))
+sso_idp_module = sso.get("GITEA_SSO_IDP_MODULE", "").strip()
+sso_domain = sso.get("GITEA_SSO_DOMAIN", "").strip()
+sso_fields = {"sso_enabled", "sso_idp_module", "sso_domain"}
+if "sso_enabled" in data:
+    sso_enabled = bool(data["sso_enabled"])
+if "sso_idp_module" in data:
+    sso_idp_module = str(data["sso_idp_module"]).strip()
+if "sso_domain" in data:
+    sso_domain = str(data["sso_domain"]).strip()
+if setup_mode == "manual":
+    agent.assert_exp(
+        not ("sso_enabled" in data and sso_enabled),
+        "SSO through the NS8 IdP requires managed setup mode.",
+    )
+    sso_enabled = False
+agent.assert_exp(
+    not sso_enabled or (sso_idp_module and sso_domain),
+    "An IdP module and a user domain are required for SSO.",
+)
 agent.bind_user_domains(
-    [domain] if enabled and domain else [],
-    check=bool(auth_fields.intersection(data)),
+    sorted({d for d in ([domain] if enabled else []) + ([sso_domain] if sso_enabled else []) if d}),
+    check=bool(auth_fields.intersection(data)) or bool(sso_fields.intersection(data)),
 )
 
 # Persist the one-time choice only after validation and the strict cluster
@@ -232,6 +260,17 @@ agent.write_envfile(
     },
 )
 os.chmod(SETUP_ENV_FILE, 0o600)
+# The applied fingerprint is owned by the reconciliation and kept here.
+agent.write_envfile(
+    "gitea-sso.env",
+    {
+        "GITEA_SSO_ENABLED": str(sso_enabled).lower(),
+        "GITEA_SSO_IDP_MODULE": sso_idp_module,
+        "GITEA_SSO_DOMAIN": sso_domain,
+        "GITEA_SSO_APPLIED": sso.get("GITEA_SSO_APPLIED", ""),
+    },
+)
+os.chmod("gitea-sso.env", 0o600)
 agent.write_envfile("gitea.env", gitea)
 os.chmod("gitea.env", 0o600)
 agent.write_envfile("gitea-auth.env", auth)

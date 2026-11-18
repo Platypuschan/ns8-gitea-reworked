@@ -382,6 +382,51 @@
                 {{ $t("settings.sso_description") }}
               </p>
               <cv-toggle
+                value="ssoEnabled"
+                :label="$t('settings.sso_enabled')"
+                v-model="isSsoEnabled"
+                :disabled="loading.getConfiguration || loading.configureModule"
+                class="mg-bottom"
+              >
+                <template slot="text-left">{{
+                  $t("settings.disabled")
+                }}</template>
+                <template slot="text-right">{{
+                  $t("settings.enabled")
+                }}</template>
+              </cv-toggle>
+              <template v-if="isSsoEnabled">
+                <cv-text-input
+                  :label="$t('settings.sso_idp_module')"
+                  placeholder="idp-reworked1"
+                  v-model.trim="ssoIdpModule"
+                  class="mg-bottom"
+                  :invalid-message="$t(error.sso_idp_module)"
+                  :disabled="
+                    loading.getConfiguration || loading.configureModule
+                  "
+                  ref="sso_idp_module"
+                >
+                </cv-text-input>
+                <NsComboBox
+                  v-model="ssoDomain"
+                  :options="adDomains"
+                  auto-highlight
+                  :title="$t('settings.sso_domain')"
+                  :label="$t('settings.ad_domain_placeholder')"
+                  :invalid-message="$t(error.sso_domain)"
+                  :disabled="
+                    loading.getConfiguration ||
+                    loading.configureModule ||
+                    loading.listUserDomains
+                  "
+                  class="mg-bottom"
+                  ref="sso_domain"
+                >
+                </NsComboBox>
+                <p class="field-help">{{ $t("settings.sso_group_help") }}</p>
+              </template>
+              <cv-toggle
                 value="ssoAutoRegistration"
                 :label="$t('settings.sso_auto_registration')"
                 v-model="isSsoAutoRegistrationEnabled"
@@ -505,6 +550,9 @@ export default {
       mailerFrom: "",
       isSmarthostMailEnabled: false,
       isSsoAutoRegistrationEnabled: false,
+      isSsoEnabled: false,
+      ssoIdpModule: "",
+      ssoDomain: "",
       isSmarthostAvailable: false,
       sshPort: 0,
       setupMode: "",
@@ -620,6 +668,9 @@ export default {
       this.mailerFrom = config.mailer_from;
       this.isSmarthostMailEnabled = config.smarthost_mail;
       this.isSsoAutoRegistrationEnabled = config.sso_auto_registration;
+      this.isSsoEnabled = config.sso_enabled;
+      this.ssoIdpModule = config.sso_idp_module;
+      this.ssoDomain = config.sso_domain;
       this.isSmarthostAvailable = config.smarthost_available;
       this.sshPort = config.ssh_port;
       this.setupModeState = config.setup_mode;
@@ -670,6 +721,21 @@ export default {
         this.error.mailer_from = "settings.invalid_mailer_from";
         if (isValidationOk) {
           this.focusElement("mailer_from");
+        }
+        isValidationOk = false;
+      }
+      const validateSso = this.setupMode === "managed" && this.isSsoEnabled;
+      if (validateSso && !/^[a-zA-Z0-9_.-]+$/.test(this.ssoIdpModule)) {
+        this.error.sso_idp_module = "common.required";
+        if (isValidationOk) {
+          this.focusElement("sso_idp_module");
+        }
+        isValidationOk = false;
+      }
+      if (validateSso && !this.ssoDomain) {
+        this.error.sso_domain = "common.required";
+        if (isValidationOk) {
+          this.focusElement("sso_domain");
         }
         isValidationOk = false;
       }
@@ -763,6 +829,9 @@ export default {
             mailer_from: this.mailerFrom,
             smarthost_mail:
               this.setupMode === "managed" && this.isSmarthostMailEnabled,
+            sso_enabled: this.setupMode === "managed" && this.isSsoEnabled,
+            sso_idp_module: this.ssoIdpModule,
+            sso_domain: this.ssoDomain,
             sso_auto_registration:
               this.setupMode === "managed" && this.isSsoAutoRegistrationEnabled,
             ad_enabled: this.setupMode === "managed" && this.isAdEnabled,

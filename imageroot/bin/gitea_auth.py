@@ -12,6 +12,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import fcntl
+import hashlib
 import ipaddress
 import json
 import os
@@ -30,6 +31,9 @@ SETUP_ENV_FILE = "gitea-setup.env"
 RECOVERY_ENV_FILE = "gitea-recovery.env"
 LOCK_FILE = ".gitea-auth.lock"
 MANAGED_SOURCE_NAME = "NS8 Active Directory"
+SSO_ENV_FILE = "gitea-sso.env"
+SSO_SOURCE_NAME = "ns8-sso"
+SSO_SCOPES = "profile email"
 RECOVERY_USERNAME = "ns8-recovery-admin"
 RECOVERY_EMAIL = "ns8-recovery-admin@localhost.invalid"
 RECOVERY_PASSWORD_KEY = "GITEA_RECOVERY_PASSWORD"
@@ -747,15 +751,7 @@ def apply_managed_source(
         raise ReconcileError("The managed AD authentication source is not active.")
 
 
-def reconcile() -> None:
-    # The web installer and all manually created authentication sources belong
-    # exclusively to Gitea in manual mode. Pending instances have not made the
-    # one-time setup choice yet.
-    if read_setup_mode() != "managed":
-        return
-    config = read_auth_config()
-    wait_for_gitea()
-    ensure_recovery_admin()
+def reconcile_ad(config: AuthConfig) -> None:
     sources = list_auth_sources()
 
     if not config.enabled:
@@ -779,10 +775,184 @@ def reconcile() -> None:
     apply_managed_source(sources, settings)
 
 
-def main() -> int:
+@dataclass(frozen=True)
+class SsoConfig:
+    enabled: bool
+    idp_module: str
+    domain: str
+    applied: str
+
+
+def read_sso_config() -> SsoConfig:
+    import agent
+
+    try:
+        values = agent.read_envfile(SSO_ENV_FILE)
+    except FileNotFoundError:
+        values = {}
+    return SsoConfig(
+        enabled=parse_bool(values.get("GITEA_SSO_ENABLED")),
+        idp_module=values.get("GITEA_SSO_IDP_MODULE", "").strip(),
+        domain=values.get("GITEA_SSO_DOMAIN", "").strip(),
+        applied=values.get("GITEA_SSO_APPLIED", "").strip(),
+    )
+
+
+def write_sso_applied(config: SsoConfig, applied: str) -> None:
+    import agent
+
+    agent.write_envfile(
+        SSO_ENV_FILE,
+        {
+            "GITEA_SSO_ENABLED": str(config.enabled).lower(),
+            "GITEA_SSO_IDP_MODULE": config.idp_module,
+            "GITEA_SSO_DOMAIN": config.domain,
+            "GITEA_SSO_APPLIED": applied,
+        },
+    )
+    os.chmod(SSO_ENV_FILE, 0o600)
+
+
+def application_host() -> str:
+    import agent
+
+    host = os.environ.get("TRAEFIK_HOST", "").strip()
+    if not host:
+        host = agent.read_envfile("environment").get("TRAEFIK_HOST", "").strip()
+    if not host:
+        raise ReconcileError("The application host name is not configured.")
+    return host
+
+
+def register_sso_client(config: SsoConfig, host: str) -> dict[str, str]:
+    """Create or update this module's OIDC client; the IdP keeps its secret."""
+
+    import agent.tasks
+
+    callback = f"https://{host}/user/oauth2/{SSO_SOURCE_NAME}/callback"
+    try:
+        response = agent.tasks.run(
+            agent_id="module/" + config.idp_module,
+            action="register-client",
+            data={
+                "domain": config.domain,
+                "redirect_uris": [callback],
+                "post_logout_redirect_uris": [f"https://{host}/"],
+                "web_origins": [f"https://{host}"],
+            },
+            extra={"isNotificationHidden": True},
+        )
+    except Exception as exc:
+        raise ReconcileError(
+            f"The IdP register-client task could not run: {type(exc).__name__}."
+        ) from None
+    if response.get("exit_code") != 0:
+        raise ReconcileError(
+            f"The IdP {config.idp_module} rejected register-client for domain "
+            f"{config.domain}. Check that the module is bound to the domain."
+        )
+    output = response.get("output")
+    registration = json.loads(output) if isinstance(output, str) else output
+    for key in ("client_id", "client_secret", "issuer"):
+        if not isinstance(registration.get(key), str) or not registration[key]:
+            raise ReconcileError(f"The IdP registration lacks {key}.")
+    return registration
+
+
+def restart_gitea() -> None:
+    subprocess.run(["systemctl", "--user", "restart", "gitea.service"], check=True)
+    wait_for_gitea()
+
+
+def reconcile_sso() -> None:
+    """Keep the OIDC source of the IdP in sync with the module settings."""
+
+    config = read_sso_config()
+    sources = list_auth_sources()
+    matches = [s for s in sources if s["name"] == SSO_SOURCE_NAME]
+    if len(matches) > 1:
+        raise ReconcileError(f"More than one authentication source is named {SSO_SOURCE_NAME!r}.")
+    source = matches[0] if matches else None
+    if source is not None and not source["type"].startswith("OAuth2"):
+        raise ReconcileError(
+            f"Authentication source {SSO_SOURCE_NAME!r} exists with an incompatible type. "
+            "It was not modified."
+        )
+
+    if not config.enabled:
+        if config.applied and source is not None:
+            try:
+                run_gitea(["admin", "auth", "delete", "--id", source["id"]])
+            except ReconcileError as exc:
+                # Gitea refuses to delete a source that accounts still use.
+                print(f"The SSO source was kept: {exc}", file=sys.stderr)
+                return
+        if config.applied:
+            write_sso_applied(config, "")
+        return
+
+    host = application_host()
+    registration = register_sso_client(config, host)
+    discovery = registration["issuer"].rstrip("/") + "/.well-known/openid-configuration"
+    fingerprint = hashlib.sha256(
+        "\0".join(
+            [registration["client_id"], registration["client_secret"], discovery, SSO_SCOPES]
+        ).encode()
+    ).hexdigest()
+    if source is not None and config.applied == fingerprint:
+        return
+
+    arguments = [
+        "--name", SSO_SOURCE_NAME,
+        "--provider", "openidConnect",
+        "--key", registration["client_id"],
+        "--secret", registration["client_secret"],
+        "--auto-discover-url", discovery,
+        "--scopes", SSO_SCOPES,
+    ]
+    secret = registration["client_secret"]
+    if source is None:
+        run_gitea(["admin", "auth", "add-oauth", *arguments], secrets=(secret,))
+    else:
+        run_gitea(
+            ["admin", "auth", "update-oauth", "--id", source["id"], *arguments],
+            secrets=(secret,),
+        )
+        # Gitea keeps the old provider settings in memory until it restarts.
+        restart_gitea()
+    verified = [s for s in list_auth_sources() if s["name"] == SSO_SOURCE_NAME]
+    if len(verified) != 1 or verified[0]["enabled"] != "true":
+        raise ReconcileError("The SSO authentication source is not active.")
+    write_sso_applied(config, fingerprint)
+
+
+def reconcile(strict_sso: bool = False) -> None:
+    # The web installer and all manually created authentication sources belong
+    # exclusively to Gitea in manual mode. Pending instances have not made the
+    # one-time setup choice yet.
+    if read_setup_mode() != "managed":
+        return
+    config = read_auth_config()
+    wait_for_gitea()
+    ensure_recovery_admin()
+    try:
+        reconcile_ad(config)
+    finally:
+        try:
+            reconcile_sso()
+        except ReconcileError as exc:
+            # Restore, clone and domain events must not fail because an IdP
+            # is temporarily missing; configure-module passes --strict-sso.
+            print(f"Gitea SSO reconciliation failed: {exc}", file=sys.stderr)
+            if strict_sso:
+                raise
+
+
+def main(argv: list[str] | None = None) -> int:
+    strict_sso = "--strict-sso" in (sys.argv[1:] if argv is None else argv)
     with authentication_lock():
         try:
-            reconcile()
+            reconcile(strict_sso)
         except ReconcileError as exc:
             print(f"Gitea authentication reconciliation failed: {exc}", file=sys.stderr)
             return 1

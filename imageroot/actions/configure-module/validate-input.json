@@ -53,6 +53,24 @@
             "description": "Managed setup only. When disabled, or when the node has no smarthost, the Gitea mailer is disabled and its connection settings are cleared.",
             "default": false
         },
+        "sso_enabled": {
+            "type": "boolean",
+            "title": "Single sign-on through an NS8 IdP module",
+            "description": "Managed setup only. Gitea registers its OIDC client at the IdP and keeps the authentication source ns8-sso up to date.",
+            "default": false
+        },
+        "sso_idp_module": {
+            "type": "string",
+            "title": "IdP module instance",
+            "description": "Instance of idp-reworked, for example idp-reworked1.",
+            "pattern": "^[a-zA-Z0-9_.-]*$",
+            "maxLength": 64
+        },
+        "sso_domain": {
+            "type": "string",
+            "title": "User domain of the IdP realm",
+            "maxLength": 253
+        },
         "sso_auto_registration": {
             "type": "boolean",
             "title": "Create accounts on the first external OIDC login",
