@@ -376,6 +376,26 @@
             <p v-else-if="setupMode === 'manual'" class="field-help">
               {{ $t("settings.mail_manual_help") }}
             </p>
+            <div v-if="setupMode === 'managed'" class="sso-settings">
+              <h3>{{ $t("settings.sso_title") }}</h3>
+              <p class="section-description">
+                {{ $t("settings.sso_description") }}
+              </p>
+              <cv-toggle
+                value="ssoAutoRegistration"
+                :label="$t('settings.sso_auto_registration')"
+                v-model="isSsoAutoRegistrationEnabled"
+                :disabled="loading.getConfiguration || loading.configureModule"
+                class="mg-bottom"
+              >
+                <template slot="text-left">{{
+                  $t("settings.disabled")
+                }}</template>
+                <template slot="text-right">{{
+                  $t("settings.enabled")
+                }}</template>
+              </cv-toggle>
+            </div>
             <!-- advanced options -->
             <cv-accordion class="maxwidth mg-bottom">
               <cv-accordion-item>
@@ -484,6 +504,7 @@ export default {
       host: "",
       mailerFrom: "",
       isSmarthostMailEnabled: false,
+      isSsoAutoRegistrationEnabled: false,
       isSmarthostAvailable: false,
       sshPort: 0,
       setupMode: "",
@@ -598,6 +619,7 @@ export default {
       this.host = config.host;
       this.mailerFrom = config.mailer_from;
       this.isSmarthostMailEnabled = config.smarthost_mail;
+      this.isSsoAutoRegistrationEnabled = config.sso_auto_registration;
       this.isSmarthostAvailable = config.smarthost_available;
       this.sshPort = config.ssh_port;
       this.setupModeState = config.setup_mode;
@@ -741,6 +763,8 @@ export default {
             mailer_from: this.mailerFrom,
             smarthost_mail:
               this.setupMode === "managed" && this.isSmarthostMailEnabled,
+            sso_auto_registration:
+              this.setupMode === "managed" && this.isSsoAutoRegistrationEnabled,
             ad_enabled: this.setupMode === "managed" && this.isAdEnabled,
             ad_domain: this.adDomain,
             ad_user_group: this.adUserGroup,

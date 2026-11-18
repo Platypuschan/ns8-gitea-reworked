@@ -146,6 +146,7 @@ class PortAllocationTests(unittest.TestCase):
                     "GITEA_SETUP_MODE": "managed",
                     "GITEA_MAILER_FROM": "",
                     "GITEA_MAIL_SMARTHOST": "false",
+                    "GITEA_SSO_AUTO_REGISTRATION": "false",
                 },
             )
             self.assertEqual(
@@ -204,6 +205,7 @@ class PortAllocationTests(unittest.TestCase):
                 "GITEA_SETUP_MODE": "managed",
                 "GITEA_MAILER_FROM": "",
                 "GITEA_MAIL_SMARTHOST": "false",
+                "GITEA_SSO_AUTO_REGISTRATION": "false",
             },
         )
         self.assertEqual(agent.bound_domains, [(["ad.example.test"], False)])
@@ -283,6 +285,7 @@ class PortAllocationTests(unittest.TestCase):
                     "GITEA_SETUP_MODE": "manual",
                     "GITEA_MAILER_FROM": "",
                     "GITEA_MAIL_SMARTHOST": "false",
+                    "GITEA_SSO_AUTO_REGISTRATION": "false",
                 },
             )
             for key in (
@@ -491,6 +494,35 @@ class SmarthostTests(unittest.TestCase):
         self.assertEqual(agent.files["gitea-setup.env"], {"GITEA_SETUP_MODE": "pending"})
         setup = self.configure(agent, {"setup_mode": "manual", "smarthost_mail": False})
         self.assertEqual(setup["GITEA_MAIL_SMARTHOST"], "false")
+
+    def test_sso_auto_registration_is_opt_in_and_kept_for_restore(self):
+        agent = FakeAgent()
+        agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "pending"}
+        setup = self.configure(agent, {"setup_mode": "managed"})
+        self.assertEqual(setup["GITEA_SSO_AUTO_REGISTRATION"], "false")
+        env = agent.files["gitea.env"]
+        self.assertEqual(env["GITEA__oauth2_client__ENABLE_AUTO_REGISTRATION"], "false")
+        self.assertEqual(env["GITEA__service__DISABLE_REGISTRATION"], "true")
+        setup = self.configure(agent, {"sso_auto_registration": True})
+        self.assertEqual(setup["GITEA_SSO_AUTO_REGISTRATION"], "true")
+        env = agent.files["gitea.env"]
+        self.assertEqual(env["GITEA__oauth2_client__ENABLE_AUTO_REGISTRATION"], "true")
+        self.assertEqual(env["GITEA__service__ALLOW_ONLY_EXTERNAL_REGISTRATION"], "true")
+        self.assertEqual(env["GITEA__oauth2_client__USERNAME"], "preferred_username")
+        self.assertEqual(env["GITEA__service__DISABLE_REGISTRATION"], "true")
+        self.assertEqual(self.configure(agent, {})["GITEA_SSO_AUTO_REGISTRATION"], "true")
+        setup = self.configure(agent, {"sso_auto_registration": False})
+        self.assertEqual(setup["GITEA_SSO_AUTO_REGISTRATION"], "false")
+        self.assertEqual(
+            agent.files["gitea.env"]["GITEA__service__ALLOW_ONLY_EXTERNAL_REGISTRATION"], "false"
+        )
+
+    def test_manual_mode_rejects_sso_auto_registration(self):
+        agent = FakeAgent()
+        agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "pending"}
+        with self.assertRaisesRegex(AssertionError, "requires managed setup mode"):
+            self.configure(agent, {"setup_mode": "manual", "sso_auto_registration": True})
+        self.assertEqual(agent.files["gitea-setup.env"], {"GITEA_SETUP_MODE": "pending"})
 
     def test_smarthost_event_restarts_only_opted_in_instances(self):
         source = (ROOT / "imageroot/events/smarthost-changed/10reload_services").read_text(

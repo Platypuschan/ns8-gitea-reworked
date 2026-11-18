@@ -53,6 +53,12 @@
             "description": "Managed setup only. When disabled, or when the node has no smarthost, the Gitea mailer is disabled and its connection settings are cleared.",
             "default": false
         },
+        "sso_auto_registration": {
+            "type": "boolean",
+            "title": "Create accounts on the first external OIDC login",
+            "description": "Managed setup only. Users of an OIDC authentication source added in Gitea get an account on first login; password registration stays disabled.",
+            "default": false
+        },
         "mailer_from": {
             "type": "string",
             "title": "Gitea mail sender address",
