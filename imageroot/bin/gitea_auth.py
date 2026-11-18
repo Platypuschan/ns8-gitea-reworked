@@ -34,6 +34,8 @@ MANAGED_SOURCE_NAME = "NS8 Active Directory"
 SSO_ENV_FILE = "gitea-sso.env"
 SSO_SOURCE_NAME = "ns8-sso"
 SSO_SCOPES = "profile email"
+SSO_BLOCKED = "blocked"
+SSO_BLOCK_CLAIM = "ns8-sso-disabled"
 RECOVERY_USERNAME = "ns8-recovery-admin"
 RECOVERY_EMAIL = "ns8-recovery-admin@localhost.invalid"
 RECOVERY_PASSWORD_KEY = "GITEA_RECOVERY_PASSWORD"
@@ -884,8 +886,19 @@ def reconcile_sso() -> None:
             try:
                 run_gitea(["admin", "auth", "delete", "--id", source["id"]])
             except ReconcileError as exc:
-                # Gitea refuses to delete a source that accounts still use.
-                print(f"The SSO source was kept: {exc}", file=sys.stderr)
+                # Gitea refuses to delete a source that accounts still use and
+                # has no switch to deactivate it. Block every login instead:
+                # no IdP token carries this claim.
+                print(f"The SSO source could not be deleted: {exc}", file=sys.stderr)
+                if config.applied != SSO_BLOCKED:
+                    run_gitea(
+                        [
+                            "admin", "auth", "update-oauth", "--id", source["id"],
+                            "--required-claim-name", SSO_BLOCK_CLAIM,
+                            "--required-claim-value", SSO_BLOCK_CLAIM,
+                        ]
+                    )
+                    write_sso_applied(config, SSO_BLOCKED)
                 return
         if config.applied:
             write_sso_applied(config, "")
@@ -910,6 +923,9 @@ def reconcile_sso() -> None:
         "--auto-discover-url", discovery,
         "--scopes", SSO_SCOPES,
     ]
+    if source is not None:
+        # Clear a block left by an earlier disable operation.
+        arguments += ["--required-claim-name", "", "--required-claim-value", ""]
     secret = registration["client_secret"]
     if source is None:
         run_gitea(["admin", "auth", "add-oauth", *arguments], secrets=(secret,))

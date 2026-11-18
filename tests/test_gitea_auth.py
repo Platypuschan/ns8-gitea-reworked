@@ -464,6 +464,36 @@ class SsoReconcileTests(unittest.TestCase):
         m["register"].assert_not_called()
         self.assertEqual(m["write"].call_args.args[1], "")
 
+    def test_disabled_sso_blocks_a_source_that_is_still_in_use(self):
+        refused = gitea_auth.ReconcileError("login source is still used by some users")
+        m = self.reconcile(
+            enabled=False, applied="x", sources=[[self.source()]],
+            run_side_effect=[refused, ""],
+        )
+        block = m["run"].call_args.args[0]
+        self.assertEqual(block[:5], ["admin", "auth", "update-oauth", "--id", "7"])
+        self.assertIn("--required-claim-name", block)
+        self.assertEqual(m["write"].call_args.args[1], gitea_auth.SSO_BLOCKED)
+
+    def test_blocked_source_is_not_blocked_again(self):
+        refused = gitea_auth.ReconcileError("login source is still used by some users")
+        m = self.reconcile(
+            enabled=False, applied=gitea_auth.SSO_BLOCKED, sources=[[self.source()]],
+            run_side_effect=[refused],
+        )
+        self.assertEqual(m["run"].call_count, 1)
+        m["write"].assert_not_called()
+
+    def test_reenabling_clears_the_block(self):
+        m = self.reconcile(
+            applied=gitea_auth.SSO_BLOCKED, sources=[[self.source()], [self.source()]]
+        )
+        command = m["run"].call_args.args[0]
+        self.assertEqual(command[:3], ["admin", "auth", "update-oauth"])
+        i = command.index("--required-claim-name")
+        self.assertEqual(command[i + 1], "")
+        m["restart"].assert_called_once_with()
+
     def test_disabled_sso_leaves_foreign_sources_alone(self):
         m = self.reconcile(enabled=False, applied="", sources=[[self.source()]])
         m["run"].assert_not_called()
