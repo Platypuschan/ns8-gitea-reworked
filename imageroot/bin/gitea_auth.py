@@ -841,6 +841,11 @@ def register_sso_client(config: SsoConfig, host: str) -> dict[str, str]:
                 "redirect_uris": [callback],
                 "post_logout_redirect_uris": [f"https://{host}/"],
                 "web_origins": [f"https://{host}"],
+                # Fail closed: nobody signs in until an administrator picks
+                # the LDAP group on the IdP access page. The IdP never clears
+                # this flag, so a client that is deleted and registered again
+                # (SSO switched off and on) cannot lose its restriction.
+                "access_required": True,
             },
             extra={"isNotificationHidden": True},
         )

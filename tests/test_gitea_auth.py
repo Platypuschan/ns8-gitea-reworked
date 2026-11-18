@@ -1,4 +1,5 @@
 import contextlib
+import json
 import importlib.util
 import os
 import stat
@@ -403,6 +404,34 @@ REGISTRATION = {
     "client_secret": "s3cret-value",
     "issuer": "https://sso.example.test/realms/ad.example.test",
 }
+
+
+class SsoRegistrationTests(unittest.TestCase):
+    def test_registration_requires_an_access_group(self):
+        import types
+
+        calls = []
+        tasks = types.ModuleType("agent.tasks")
+
+        def run(**kwargs):
+            calls.append(kwargs)
+            return {"exit_code": 0, "output": json.dumps(REGISTRATION)}
+
+        tasks.run = run
+        agent_module = types.ModuleType("agent")
+        agent_module.tasks = tasks
+        config = gitea_auth.SsoConfig(True, "idp-reworked1", "ad.example.test", "")
+        with mock.patch.dict(sys.modules, {"agent": agent_module, "agent.tasks": tasks}):
+            self.assertEqual(
+                gitea_auth.register_sso_client(config, "git.example.test"), REGISTRATION
+            )
+        data = calls[0]["data"]
+        self.assertIs(data["access_required"], True)
+        self.assertEqual(
+            data["redirect_uris"],
+            ["https://git.example.test/user/oauth2/ns8-sso/callback"],
+        )
+        self.assertEqual(calls[0]["agent_id"], "module/idp-reworked1")
 
 
 class SsoReconcileTests(unittest.TestCase):

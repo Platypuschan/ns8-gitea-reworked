@@ -37,7 +37,7 @@
     "sso_enabled": "Anmeldung über einen NS8-IdP (idp-reworked)",
     "sso_idp_module": "IdP-Modulinstanz",
     "sso_domain": "Benutzerdomäne des IdP-Realms",
-    "sso_group_help": "Gitea registriert seinen OIDC-Client selbst beim IdP und pflegt die Anmeldequelle ns8-sso. Wer sich anmelden darf, legst du auf der Zugriffsseite des IdP über eine LDAP-Gruppe fest.",
+    "sso_group_help": "Gitea registriert seinen OIDC-Client selbst beim IdP und pflegt die Anmeldequelle ns8-sso. Anmelden kann sich niemand, bis auf der Zugriffsseite des IdP eine LDAP-Gruppe gewählt ist.",
     "smarthost_unavailable_title": "Kein NS8-Smarthost eingerichtet",
     "smarthost_unavailable": "Der E-Mail-Versand von Gitea bleibt deaktiviert, bis in den NS8-Einstellungen ein Smarthost aktiviert ist.",
     "mail_manual_help": "Im manuellen Einrichtungsmodus richtest du E-Mail in Gitea selbst ein (Webinstaller oder app.ini). Das Modul ändert diese Einstellungen nicht.",
