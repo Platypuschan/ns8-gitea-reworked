@@ -35,6 +35,7 @@ SSO_ENV_FILE = "gitea-sso.env"
 SSO_SOURCE_NAME = "ns8-sso"
 SSO_SCOPES = "profile email"
 SSO_BLOCKED = "blocked"
+SSO_GROUPS_CLAIM = "groups"
 SSO_BLOCK_CLAIM = "ns8-sso-disabled"
 RECOVERY_USERNAME = "ns8-recovery-admin"
 RECOVERY_EMAIL = "ns8-recovery-admin@localhost.invalid"
@@ -783,6 +784,7 @@ class SsoConfig:
     idp_module: str
     domain: str
     applied: str
+    admin_group: str = ""
 
 
 def read_sso_config() -> SsoConfig:
@@ -797,6 +799,7 @@ def read_sso_config() -> SsoConfig:
         idp_module=values.get("GITEA_SSO_IDP_MODULE", "").strip(),
         domain=values.get("GITEA_SSO_DOMAIN", "").strip(),
         applied=values.get("GITEA_SSO_APPLIED", "").strip(),
+        admin_group=values.get("GITEA_SSO_ADMIN_GROUP", "").strip(),
     )
 
 
@@ -809,6 +812,7 @@ def write_sso_applied(config: SsoConfig, applied: str) -> None:
             "GITEA_SSO_ENABLED": str(config.enabled).lower(),
             "GITEA_SSO_IDP_MODULE": config.idp_module,
             "GITEA_SSO_DOMAIN": config.domain,
+            "GITEA_SSO_ADMIN_GROUP": config.admin_group,
             "GITEA_SSO_APPLIED": applied,
         },
     )
@@ -846,6 +850,10 @@ def register_sso_client(config: SsoConfig, host: str) -> dict[str, str]:
                 # this flag, so a client that is deleted and registered again
                 # (SSO switched off and on) cannot lose its restriction.
                 "access_required": True,
+                # Current LDAP memberships in the administrator group, read
+                # live by the IdP at every token. An IdP without this feature
+                # ignores the attribute.
+                "groups_claim": [config.admin_group] if config.admin_group else [],
             },
             extra={"isNotificationHidden": True},
         )
@@ -914,7 +922,10 @@ def reconcile_sso() -> None:
     discovery = registration["issuer"].rstrip("/") + "/.well-known/openid-configuration"
     fingerprint = hashlib.sha256(
         "\0".join(
-            [registration["client_id"], registration["client_secret"], discovery, SSO_SCOPES]
+            [
+                registration["client_id"], registration["client_secret"], discovery,
+                SSO_SCOPES, config.admin_group,
+            ]
         ).encode()
     ).hexdigest()
     if source is not None and config.applied == fingerprint:
@@ -928,6 +939,10 @@ def reconcile_sso() -> None:
         "--auto-discover-url", discovery,
         "--scopes", SSO_SCOPES,
     ]
+    if config.admin_group:
+        arguments += ["--group-claim-name", SSO_GROUPS_CLAIM, "--admin-group", config.admin_group]
+    elif source is not None:
+        arguments += ["--group-claim-name", "", "--admin-group", ""]
     if source is not None:
         # Clear a block left by an earlier disable operation.
         arguments += ["--required-claim-name", "", "--required-claim-value", ""]

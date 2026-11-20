@@ -147,7 +147,9 @@ if setup_mode == "managed":
                 sso_auto_registration
             ).lower(),
             "GITEA__oauth2_client__USERNAME": "preferred_username",
-            "GITEA__oauth2_client__ACCOUNT_LINKING": "login",
+            # Accounts are linked by user name or e-mail: the IdP user names come
+            # from the same directory as the Gitea LDAP source.
+            "GITEA__oauth2_client__ACCOUNT_LINKING": "auto",
         }
     )
 else:
@@ -226,7 +228,10 @@ except FileNotFoundError:
 sso_enabled = parse_bool(sso.get("GITEA_SSO_ENABLED", "false"))
 sso_idp_module = sso.get("GITEA_SSO_IDP_MODULE", "").strip()
 sso_domain = sso.get("GITEA_SSO_DOMAIN", "").strip()
-sso_fields = {"sso_enabled", "sso_idp_module", "sso_domain"}
+sso_admin_group = sso.get("GITEA_SSO_ADMIN_GROUP", "").strip()
+sso_fields = {"sso_enabled", "sso_idp_module", "sso_domain", "sso_admin_group"}
+if "sso_admin_group" in data:
+    sso_admin_group = str(data["sso_admin_group"]).strip()
 if "sso_enabled" in data:
     sso_enabled = bool(data["sso_enabled"])
 if "sso_idp_module" in data:
@@ -243,8 +248,23 @@ agent.assert_exp(
     not sso_enabled or (sso_idp_module and sso_domain),
     "An IdP module and a user domain are required for SSO.",
 )
+agent.assert_exp(
+    not sso_admin_group or re.fullmatch(r"[^/,\r\n]{1,128}", sso_admin_group),
+    "The SSO administrator group name is invalid.",
+)
+if sso_enabled:
+    # The IdP must be an idp-reworked instance of this cluster.
+    image_url = agent.redis_connect(use_replica=True).hget(
+        f"module/{sso_idp_module}/environment", "IMAGE_URL"
+    ) or ""
+    agent.assert_exp(
+        re.search(r"/idp-reworked(:|@|$)", image_url) is not None,
+        f"{sso_idp_module} is not an idp-reworked module instance.",
+    )
+# The domain stays bound while SSO is switched off: the IdP deletes the client
+# of a module that loses the domain, together with its access group policy.
 agent.bind_user_domains(
-    sorted({d for d in ([domain] if enabled else []) + ([sso_domain] if sso_enabled else []) if d}),
+    sorted({d for d in ([domain] if enabled else []) + ([sso_domain] if setup_mode == "managed" else []) if d}),
     check=bool(auth_fields.intersection(data)) or bool(sso_fields.intersection(data)),
 )
 
@@ -267,6 +287,7 @@ agent.write_envfile(
         "GITEA_SSO_ENABLED": str(sso_enabled).lower(),
         "GITEA_SSO_IDP_MODULE": sso_idp_module,
         "GITEA_SSO_DOMAIN": sso_domain,
+        "GITEA_SSO_ADMIN_GROUP": sso_admin_group,
         "GITEA_SSO_APPLIED": sso.get("GITEA_SSO_APPLIED", ""),
     },
 )

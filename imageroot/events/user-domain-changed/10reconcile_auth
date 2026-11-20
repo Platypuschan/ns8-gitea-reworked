@@ -36,7 +36,7 @@ sso_domain = sso.get("GITEA_SSO_DOMAIN", "").strip()
 domains = set()
 if parse_bool(config.get("GITEA_AUTH_ENABLED", "false")) and ad_domain in event.get("domains", []):
     domains.add(ad_domain)
-if parse_bool(sso.get("GITEA_SSO_ENABLED", "false")) and sso_domain in event.get("domains", []):
+if sso_domain and sso_domain in event.get("domains", []):
     domains.add(sso_domain)
 if not domains:
     sys.exit(0)
@@ -48,7 +48,7 @@ if not domains:
 bound = set(domains)
 if parse_bool(config.get("GITEA_AUTH_ENABLED", "false")) and ad_domain:
     bound.add(ad_domain)
-if parse_bool(sso.get("GITEA_SSO_ENABLED", "false")) and sso_domain:
+if sso_domain:
     bound.add(sso_domain)
 agent.bind_user_domains(sorted(bound), check=False)
 

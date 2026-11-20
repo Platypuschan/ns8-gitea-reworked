@@ -71,6 +71,13 @@
             "title": "User domain of the IdP realm",
             "maxLength": 253
         },
+        "sso_admin_group": {
+            "type": "string",
+            "title": "LDAP group of Gitea administrators for SSO",
+            "description": "Members of this LDAP group become Gitea administrators when they sign in through the IdP (groups claim). Empty disables the mapping.",
+            "maxLength": 128,
+            "default": ""
+        },
         "sso_auto_registration": {
             "type": "boolean",
             "title": "Create accounts on the first external OIDC login",
