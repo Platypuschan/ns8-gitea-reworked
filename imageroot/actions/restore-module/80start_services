@@ -15,3 +15,5 @@ touch smarthost.env
 
 systemctl --user enable gitea.service
 systemctl --user restart gitea.service
+
+systemctl --user enable --now gitea-sso-revoke.timer

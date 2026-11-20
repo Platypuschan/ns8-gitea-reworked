@@ -10,3 +10,4 @@ exec 1>&2
 
 systemctl --user daemon-reload
 systemctl --user try-restart gitea.service
+systemctl --user enable --now gitea-sso-revoke.timer

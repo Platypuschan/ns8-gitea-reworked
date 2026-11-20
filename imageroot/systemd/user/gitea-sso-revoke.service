@@ -1,0 +1,14 @@
+#
+# Copyright (C) 2026
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+[Unit]
+Description=Lock the Gitea accounts of SSO users outside the IdP access group
+After=gitea.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%E/state
+ExecStart=/usr/local/bin/runagent revoke-gitea-sso
+SyslogIdentifier=%u
