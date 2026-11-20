@@ -1,0 +1,14 @@
+#
+# Copyright (C) 2026
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+[Unit]
+Description=Lock the Gitea accounts of SSO users outside the IdP access group every 5 minutes
+
+[Timer]
+OnActiveSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

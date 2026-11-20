@@ -21,6 +21,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +37,8 @@ SSO_SOURCE_NAME = "ns8-sso"
 SSO_SCOPES = "profile email"
 SSO_BLOCKED = "blocked"
 SSO_GROUPS_CLAIM = "groups"
+REVOKE_LOCKS_FILE = "gitea-sso-locks.json"
+REVOKE_STATUS_FILE = "gitea-sso-revoke-status.json"
 SSO_BLOCK_CLAIM = "ns8-sso-disabled"
 RECOVERY_USERNAME = "ns8-recovery-admin"
 RECOVERY_EMAIL = "ns8-recovery-admin@localhost.invalid"
@@ -982,6 +985,310 @@ def reconcile(strict_sso: bool = False) -> None:
             print(f"Gitea SSO reconciliation failed: {exc}", file=sys.stderr)
             if strict_sso:
                 raise
+
+
+# ---------------------------------------------------------------------------
+# Access revocation: the IdP stops new SSO logins of users outside its access
+# group, but Gitea keeps their sessions, tokens and SSH keys. A timer locks
+# the Gitea account (prohibit_login) of SSO users who left the group and
+# unlocks the accounts it locked itself when they return. Nothing is deleted.
+# ---------------------------------------------------------------------------
+
+
+def idp_access_group(config: SsoConfig) -> str:
+    """The LDAP group the administrator selected for this client at the IdP."""
+
+    import agent.tasks
+
+    try:
+        response = agent.tasks.run(
+            agent_id="module/" + config.idp_module,
+            action="get-client-access",
+            data={"domain": config.domain},
+            extra={"isNotificationHidden": True},
+        )
+    except Exception as exc:
+        raise ReconcileError(
+            f"The IdP access state could not be read: {type(exc).__name__}."
+        ) from None
+    if response.get("exit_code") != 0:
+        raise ReconcileError("The IdP refused to report the client access state.")
+    output = response.get("output")
+    state = json.loads(output) if isinstance(output, str) else output
+    group = state.get("group") if isinstance(state, dict) else None
+    if not state.get("enforced") or not isinstance(group, str) or not group:
+        raise ReconcileError(
+            "The IdP client has no active access group; no account was changed."
+        )
+    return group
+
+
+def ldap_group_members(domain_name: str, group_name: str) -> set[str]:
+    """Case-folded sAMAccountNames of the enabled direct members of a group."""
+
+    from agent.ldapproxy import Ldapproxy
+
+    proxy = Ldapproxy()
+    domain = proxy.get_domain(domain_name)
+    if domain is None:
+        raise ReconcileError(f"The account domain {domain_name!r} is not available.")
+    host = str(domain.get("host", ""))
+    _validate_loopback_host(host)
+    base_dn = str(domain.get("base_dn", "")).strip()
+    bind_dn = str(domain.get("bind_dn", "")).strip()
+    bind_password = str(domain.get("bind_password", ""))
+    try:
+        port = int(domain["port"])
+    except (KeyError, TypeError, ValueError):
+        raise ReconcileError("NS8 returned an invalid LDAP proxy port.") from None
+    if not base_dn or not bind_dn or not bind_password:
+        raise ReconcileError("The account domain is missing LDAP bind parameters.")
+    try:
+        from ldap3 import NONE, SUBTREE, Connection, Server
+        from ldap3.utils.conv import escape_filter_chars
+
+        connection = Connection(
+            Server(host, port=port, connect_timeout=10, get_info=NONE),
+            user=bind_dn,
+            password=bind_password,
+            auto_bind=True,
+            receive_timeout=15,
+            raise_exceptions=True,
+        )
+        try:
+            escaped = escape_filter_chars(group_name)
+            connection.search(
+                search_base=base_dn,
+                search_filter=(
+                    "(&(objectCategory=group)"
+                    f"(|(sAMAccountName={escaped})(cn={escaped})))"
+                ),
+                search_scope=SUBTREE,
+                attributes=["distinguishedName"],
+                size_limit=2,
+            )
+            if len(connection.entries) != 1:
+                raise ReconcileError(
+                    f"The group {group_name!r} was not found exactly once in the directory."
+                )
+            group_dn = str(connection.entries[0].entry_dn)
+            members: set[str] = set()
+            entries = connection.extend.standard.paged_search(
+                base_dn,
+                "".join(
+                    [
+                        "(&(objectCategory=person)(objectClass=user)",
+                        membership_filter(group_dn, False),
+                        f"(!(userAccountControl:{LDAP_BITWISE_AND}:=2))",
+                        proxy.get_ldap_users_search_filter_clause(domain_name),
+                        ")",
+                    ]
+                ),
+                search_scope=SUBTREE,
+                attributes=["sAMAccountName"],
+                paged_size=500,
+                generator=True,
+            )
+            for entry in entries:
+                name = (entry.get("attributes") or {}).get("sAMAccountName")
+                if isinstance(name, list):
+                    name = name[0] if name else None
+                if name:
+                    members.add(str(name).casefold())
+            return members
+        finally:
+            connection.unbind()
+    except ReconcileError:
+        raise
+    except Exception as exc:
+        raise ReconcileError(
+            "Could not read the group members from the directory: "
+            f"{sanitize(exc, (bind_password,))}"
+        ) from None
+
+
+def linked_sso_users() -> list[str]:
+    """Gitea users that signed in or were linked through the ns8-sso source."""
+
+    query = (
+        'select u.name from external_login_user e join "user" u on u.id = e.user_id '
+        "join login_source s on s.id = e.login_source_id "
+        f"where s.name = '{SSO_SOURCE_NAME}' order by u.name;"
+    )
+    try:
+        result = subprocess.run(
+            [
+                "podman", "exec", "-i", "postgresql-app", "sh", "-ceu",
+                'exec psql -At -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
+            ],
+            input=query, capture_output=True, text=True, timeout=60, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ReconcileError(f"The database query failed: {type(exc).__name__}.") from None
+    if result.returncode != 0:
+        raise ReconcileError("The database query for SSO users failed.")
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+class GiteaApi:
+    """Administration API of the local Gitea, as the recovery administrator."""
+
+    def __init__(self, credentials: dict[str, str]):
+        port = os.environ.get("TCP_PORT", "").strip()
+        if not port.isdigit():
+            raise ReconcileError("TCP_PORT is missing or invalid.")
+        self.base = f"http://127.0.0.1:{port}/api/v1"
+        token = base64.b64encode(
+            f"{credentials['username']}:{credentials['password']}".encode()
+        ).decode()
+        self.headers = {"Authorization": f"Basic {token}", "Content-Type": "application/json"}
+
+    def request(self, method: str, path: str, body: object = None) -> object:
+        data = None if body is None else json.dumps(body).encode()
+        request = urllib.request.Request(
+            self.base + path, data=data, headers=self.headers, method=method
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                payload = response.read()
+        except urllib.error.HTTPError as exc:
+            raise ReconcileError(f"Gitea API {method} {path.split('?')[0]}: HTTP {exc.code}") from None
+        except (OSError, urllib.error.URLError) as exc:
+            raise ReconcileError(f"Gitea API {method} {path.split('?')[0]} failed: {type(exc).__name__}") from None
+        return json.loads(payload) if payload else None
+
+    def users(self) -> dict[str, dict]:
+        found: dict[str, dict] = {}
+        page = 1
+        while True:
+            chunk = self.request("GET", f"/admin/users?limit=50&page={page}")
+            if not chunk:
+                return found
+            for user in chunk:
+                found[user["login"]] = user
+            page += 1
+
+    def set_prohibit_login(self, user: dict, value: bool) -> None:
+        # The edit endpoint requires the account's current login source, so
+        # the account is edited with exactly its own values.
+        self.request(
+            "PATCH",
+            "/admin/users/" + urllib.parse.quote(user["login"], safe=""),
+            {
+                "login_name": user.get("login_name", ""),
+                "source_id": user.get("source_id", 0),
+                "prohibit_login": value,
+            },
+        )
+
+
+def read_revoke_locks() -> set[str]:
+    try:
+        with open(REVOKE_LOCKS_FILE, encoding="utf-8") as handle:
+            return {str(name) for name in json.load(handle)}
+    except FileNotFoundError:
+        return set()
+
+
+def write_revoke_locks(names: set[str]) -> None:
+    temporary = REVOKE_LOCKS_FILE + ".tmp"
+    with open(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as handle:
+        json.dump(sorted(names), handle)
+    os.replace(temporary, REVOKE_LOCKS_FILE)
+
+
+def write_revoke_status(**values: object) -> None:
+    temporary = REVOKE_STATUS_FILE + ".tmp"
+    values["time"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    with open(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as handle:
+        json.dump(values, handle)
+    os.replace(temporary, REVOKE_STATUS_FILE)
+
+
+def revoke_sso_access() -> dict[str, object]:
+    """Lock SSO accounts outside the IdP access group; unlock returning ones."""
+
+    if read_setup_mode() != "managed":
+        return {"skipped": "not managed"}
+    config = read_sso_config()
+    if not (config.enabled and config.idp_module and config.domain):
+        return {"skipped": "sso disabled"}
+    if subprocess.run(
+        ["systemctl", "--user", "is-active", "--quiet", "gitea-app.service"], check=False
+    ).returncode != 0:
+        return {"skipped": "gitea is not running"}
+    credentials = read_recovery_credentials()
+    if credentials is None:
+        raise ReconcileError("The recovery administrator is not available.")
+
+    group = idp_access_group(config)
+    members = ldap_group_members(config.domain, group)
+    api = GiteaApi(credentials)
+    accounts = api.users()
+    linked = [name for name in linked_sso_users() if name in accounts]
+    locks = read_revoke_locks()
+    blocked: list[str] = []
+    unblocked: list[str] = []
+    failed: list[str] = []
+
+    for name in linked:
+        account = accounts[name]
+        if name == RECOVERY_USERNAME or name.casefold() in members:
+            continue
+        if account.get("prohibit_login"):
+            # Locked by an administrator or by an earlier run: keep it, and
+            # only own the lock if this module placed it.
+            continue
+        try:
+            api.set_prohibit_login(account, True)
+        except ReconcileError:
+            failed.append(name)
+            continue
+        account["prohibit_login"] = True
+        locks.add(name)
+        write_revoke_locks(locks)
+        blocked.append(name)
+
+    for name in sorted(locks):
+        account = accounts.get(name)
+        if account is None:
+            locks.discard(name)  # deleted account
+        elif not account.get("prohibit_login"):
+            locks.discard(name)  # an administrator unlocked it
+        elif name.casefold() in members:
+            try:
+                api.set_prohibit_login(account, False)
+            except ReconcileError:
+                failed.append(name)
+                continue
+            locks.discard(name)
+            unblocked.append(name)
+    write_revoke_locks(locks)
+
+    report = {"group": group, "blocked": blocked, "unblocked": unblocked, "failed": failed}
+    write_revoke_status(**report, error="")
+    if failed:
+        raise ReconcileError(f"{len(failed)} account(s) could not be updated.")
+    return report
+
+
+def revoke_main() -> int:
+    with authentication_lock():
+        try:
+            report = revoke_sso_access()
+        except ReconcileError as exc:
+            write_revoke_status(error=str(exc))
+            print(f"Gitea SSO access revocation failed: {exc}", file=sys.stderr)
+            return 1
+        except Exception as exc:
+            write_revoke_status(error=type(exc).__name__)
+            print(
+                f"Gitea SSO access revocation failed with an unexpected {type(exc).__name__}.",
+                file=sys.stderr,
+            )
+            return 1
+    print("Gitea SSO access revocation: " + json.dumps(report), file=sys.stderr)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -570,5 +570,125 @@ class SsoReconcileTests(unittest.TestCase):
                 gitea_auth.reconcile(strict_sso=True)
 
 
+class RevokeTests(unittest.TestCase):
+    ACCOUNTS = {
+        "ns8-recovery-admin": {"login": "ns8-recovery-admin", "login_name": "", "source_id": 0, "prohibit_login": False},
+        "alice": {"login": "alice", "login_name": "a-sub", "source_id": 1, "prohibit_login": False},
+        "bob": {"login": "bob", "login_name": "b-sub", "source_id": 1, "prohibit_login": False},
+        "carol": {"login": "carol", "login_name": "c-sub", "source_id": 1, "prohibit_login": True},
+        "dave": {"login": "dave", "login_name": "", "source_id": 0, "prohibit_login": False},
+    }
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+        self.addCleanup(os.chdir, self.cwd)
+        self.calls = []
+        outer = self
+
+        class FakeApi:
+            def __init__(self, credentials):
+                pass
+
+            def users(self):
+                return json.loads(json.dumps(outer.ACCOUNTS | outer.extra_accounts))
+
+            def set_prohibit_login(self, user, value):
+                if user["login"] in outer.api_fails:
+                    raise gitea_auth.ReconcileError("HTTP 500")
+                outer.calls.append((user["login"], value, user["login_name"], user["source_id"]))
+
+        self.extra_accounts = {}
+        self.api_fails = set()
+        self.members = {"alice"}
+        self.linked = ["alice", "bob", "carol"]
+        patches = [
+            mock.patch.object(gitea_auth, "read_setup_mode", return_value="managed"),
+            mock.patch.object(
+                gitea_auth, "read_sso_config",
+                return_value=gitea_auth.SsoConfig(True, "idp-reworked1", "ad.example.test", ""),
+            ),
+            mock.patch.object(
+                gitea_auth, "read_recovery_credentials",
+                return_value={"username": "ns8-recovery-admin", "password": "x" * 40},
+            ),
+            mock.patch.object(gitea_auth, "idp_access_group", return_value="services_gitea"),
+            mock.patch.object(gitea_auth, "ldap_group_members", side_effect=lambda d, g: set(self.members)),
+            mock.patch.object(gitea_auth, "linked_sso_users", side_effect=lambda: list(self.linked)),
+            mock.patch.object(gitea_auth, "GiteaApi", FakeApi),
+            mock.patch.object(gitea_auth.subprocess, "run", return_value=types.SimpleNamespace(returncode=0)),
+        ]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_locks_only_linked_nonmembers_and_records_them(self):
+        report = gitea_auth.revoke_sso_access()
+        # bob left the group; carol is already locked (by an administrator);
+        # dave is not an SSO user and the recovery admin is never touched
+        self.assertEqual(self.calls, [("bob", True, "b-sub", 1)])
+        self.assertEqual(report["blocked"], ["bob"])
+        self.assertEqual(gitea_auth.read_revoke_locks(), {"bob"})
+        self.assertEqual(json.load(open(gitea_auth.REVOKE_STATUS_FILE))["error"], "")
+
+    def test_unlocks_returning_members_only_for_own_locks(self):
+        gitea_auth.write_revoke_locks({"bob"})
+        self.extra_accounts = {"bob": dict(self.ACCOUNTS["bob"], prohibit_login=True)}
+        self.members = {"alice", "bob", "carol"}
+        gitea_auth.revoke_sso_access()
+        # bob was locked by this module and is a member again; carol was
+        # locked by an administrator and stays locked
+        self.assertEqual(self.calls, [("bob", False, "b-sub", 1)])
+        self.assertEqual(gitea_auth.read_revoke_locks(), set())
+
+    def test_lock_released_by_an_administrator_is_forgotten_not_reapplied_blindly(self):
+        gitea_auth.write_revoke_locks({"bob"})
+        self.members = {"alice", "bob"}
+        gitea_auth.revoke_sso_access()
+        self.assertEqual(self.calls, [])
+        self.assertEqual(gitea_auth.read_revoke_locks(), set())
+
+    def test_nothing_changes_when_the_idp_or_ldap_cannot_answer(self):
+        for target in ("idp_access_group", "ldap_group_members"):
+            with self.subTest(target=target), mock.patch.object(
+                gitea_auth, target, side_effect=gitea_auth.ReconcileError("down")
+            ):
+                with self.assertRaises(gitea_auth.ReconcileError):
+                    gitea_auth.revoke_sso_access()
+                self.assertEqual(self.calls, [])
+
+    def test_failed_update_is_reported_and_kept_for_retry(self):
+        self.api_fails = {"bob"}
+        with self.assertRaises(gitea_auth.ReconcileError):
+            gitea_auth.revoke_sso_access()
+        self.assertEqual(gitea_auth.read_revoke_locks(), set())
+        self.api_fails = set()
+        gitea_auth.revoke_sso_access()
+        self.assertEqual(self.calls, [("bob", True, "b-sub", 1)])
+
+    def test_disabled_sso_and_stopped_gitea_do_nothing(self):
+        with mock.patch.object(
+            gitea_auth, "read_sso_config",
+            return_value=gitea_auth.SsoConfig(False, "idp-reworked1", "ad.example.test", ""),
+        ):
+            self.assertEqual(gitea_auth.revoke_sso_access(), {"skipped": "sso disabled"})
+        with mock.patch.object(
+            gitea_auth.subprocess, "run", return_value=types.SimpleNamespace(returncode=3)
+        ):
+            self.assertEqual(gitea_auth.revoke_sso_access(), {"skipped": "gitea is not running"})
+        self.assertEqual(self.calls, [])
+
+    def test_main_reports_errors_in_the_status_file(self):
+        with mock.patch.object(
+            gitea_auth, "idp_access_group", side_effect=gitea_auth.ReconcileError("no group")
+        ), mock.patch.object(
+            gitea_auth, "authentication_lock", return_value=contextlib.nullcontext()
+        ):
+            self.assertEqual(gitea_auth.revoke_main(), 1)
+        self.assertEqual(json.load(open(gitea_auth.REVOKE_STATUS_FILE))["error"], "no group")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -176,9 +176,18 @@ Access control:
 
 Limits:
 
-- Removing a user from the access group stops new SSO logins. It does not end
-  existing Gitea sessions, personal access tokens or SSH keys; they stay valid
-  until an administrator revokes them or disables the account in Gitea.
+- Removing a user from the access group stops new SSO logins at the IdP. Gitea
+  would keep their sessions, personal access tokens and SSH keys, so a timer
+  (`gitea-sso-revoke.timer`, every 5 minutes) reads the access group from the
+  IdP, reads its direct members from LDAP and locks the Gitea account
+  (`prohibit_login`) of every SSO-linked user outside the group. A locked
+  account cannot sign in and its web sessions, API tokens and SSH keys stop
+  working, but nothing is deleted: when the user is a member again the timer
+  unlocks the account and everything works as before. The timer unlocks only
+  accounts it locked itself, never the recovery administrator or accounts
+  that were not linked through SSO, and it changes nothing when the IdP or
+  LDAP cannot answer or no access group is selected. The result of the last
+  run is in `gitea-sso-revoke-status.json` in the module state directory.
 - Only one IdP instance is supported. Switching to another IdP instance with
   the same user domain leaves the client in the old IdP; remove it there.
 - The IdP instance and domain are chosen from lists in the Settings page.
