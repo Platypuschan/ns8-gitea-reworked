@@ -32,10 +32,20 @@ class FakeAgent(types.ModuleType):
         self.files = {}
         self.environment = {}
         self.bound_domains = []
+        self.module_images = {
+            "idp-reworked1": "ghcr.io/platypuschan/idp-reworked:0.1.1",
+            "other1": "ghcr.io/nethserver/other:1.0.0",
+        }
         self.smtp = {"enabled": False}
 
     def redis_connect(self, use_replica=False):
-        return None
+        agent = self
+
+        class Redis:
+            def hget(self, key, field):
+                return agent.module_images.get(key.split("/")[1])
+
+        return Redis()
 
     def get_smarthost_settings(self, rdb):
         return self.smtp
@@ -550,7 +560,42 @@ class SmarthostTests(unittest.TestCase):
         self.assertEqual(agent.files["gitea-sso.env"]["GITEA_SSO_APPLIED"], "abc")
         self.configure(agent, {"sso_enabled": False})
         self.assertEqual(agent.files["gitea-sso.env"]["GITEA_SSO_ENABLED"], "false")
+        # The binding stays: unbinding deletes the IdP client and its group policy
+        self.assertIn("sso.example.test", agent.bound_domains[-1][0])
+        # Only a changed domain moves the binding
+        self.configure(agent, {"sso_domain": "other.example.test"})
         self.assertNotIn("sso.example.test", agent.bound_domains[-1][0])
+        self.assertIn("other.example.test", agent.bound_domains[-1][0])
+
+    def test_sso_idp_must_be_an_idp_reworked_instance(self):
+        agent = FakeAgent()
+        agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "pending"}
+        base = {"setup_mode": "managed", "sso_enabled": True, "sso_domain": "sso.example.test"}
+        for module in ("other1", "missing1"):
+            with self.subTest(module=module), self.assertRaisesRegex(AssertionError, "not an idp-reworked"):
+                self.configure(agent, base | {"sso_idp_module": module})
+        self.configure(agent, base | {"sso_idp_module": "idp-reworked1"})
+
+    def test_sso_admin_group_is_validated_stored_and_kept(self):
+        agent = FakeAgent()
+        agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "pending"}
+        self.configure(agent, {"setup_mode": "managed", "sso_admin_group": "gitea-admin"})
+        self.assertEqual(agent.files["gitea-sso.env"]["GITEA_SSO_ADMIN_GROUP"], "gitea-admin")
+        self.configure(agent, {})
+        self.assertEqual(agent.files["gitea-sso.env"]["GITEA_SSO_ADMIN_GROUP"], "gitea-admin")
+        for bad in ("a,b", "a/b", "x" * 129):
+            with self.subTest(bad=bad), self.assertRaisesRegex(AssertionError, "administrator group"):
+                self.configure(agent, {"sso_admin_group": bad})
+        self.configure(agent, {"sso_admin_group": ""})
+        self.assertEqual(agent.files["gitea-sso.env"]["GITEA_SSO_ADMIN_GROUP"], "")
+
+    def test_accounts_are_linked_automatically(self):
+        agent = FakeAgent()
+        agent.files["gitea-setup.env"] = {"GITEA_SETUP_MODE": "pending"}
+        self.configure(agent, {"setup_mode": "managed"})
+        self.assertEqual(
+            agent.files["gitea.env"]["GITEA__oauth2_client__ACCOUNT_LINKING"], "auto"
+        )
 
     def test_sso_requires_idp_and_domain_and_managed_mode(self):
         agent = FakeAgent()

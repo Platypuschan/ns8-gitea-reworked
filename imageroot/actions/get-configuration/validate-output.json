@@ -17,6 +17,7 @@
       "sso_enabled": false,
       "sso_idp_module": "",
       "sso_domain": "",
+      "sso_admin_group": "",
       "ad_enabled": true,
       "ad_domain": "ad.domain.org",
       "ad_user_group": "gitea-user",
@@ -39,6 +40,7 @@
     "sso_enabled",
     "sso_idp_module",
     "sso_domain",
+    "sso_admin_group",
     "ad_enabled",
     "ad_domain",
     "ad_user_group",
@@ -82,6 +84,7 @@
       "type": "boolean",
       "title": "Gitea mail is sent through the NS8 smarthost"
     },
+    "sso_admin_group": {"type": "string", "title": "LDAP group of Gitea administrators for SSO"},
     "sso_enabled": {"type": "boolean", "title": "SSO through an NS8 IdP module is enabled"},
     "sso_idp_module": {"type": "string", "title": "IdP module instance"},
     "sso_domain": {"type": "string", "title": "User domain of the IdP realm"},

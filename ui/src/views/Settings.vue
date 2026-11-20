@@ -396,21 +396,33 @@
                 }}</template>
               </cv-toggle>
               <template v-if="isSsoEnabled">
-                <cv-text-input
-                  :label="$t('settings.sso_idp_module')"
-                  placeholder="idp-reworked1"
-                  v-model.trim="ssoIdpModule"
+                <NsInlineNotification
+                  v-if="error.listIdpModules"
+                  kind="error"
+                  :title="$t('action.list-installed-modules')"
+                  :description="error.listIdpModules"
+                  :showCloseButton="false"
                   class="mg-bottom"
+                />
+                <NsComboBox
+                  v-model="ssoIdpModule"
+                  :options="idpModules"
+                  auto-highlight
+                  :title="$t('settings.sso_idp_module')"
+                  :label="$t('settings.sso_idp_module_placeholder')"
                   :invalid-message="$t(error.sso_idp_module)"
                   :disabled="
-                    loading.getConfiguration || loading.configureModule
+                    loading.getConfiguration ||
+                    loading.configureModule ||
+                    loading.listIdpModules
                   "
+                  class="mg-bottom"
                   ref="sso_idp_module"
                 >
-                </cv-text-input>
+                </NsComboBox>
                 <NsComboBox
                   v-model="ssoDomain"
-                  :options="adDomains"
+                  :options="allDomains"
                   auto-highlight
                   :title="$t('settings.sso_domain')"
                   :label="$t('settings.ad_domain_placeholder')"
@@ -424,6 +436,17 @@
                   ref="sso_domain"
                 >
                 </NsComboBox>
+                <cv-text-input
+                  :label="$t('settings.sso_admin_group')"
+                  placeholder="gitea-admin"
+                  v-model.trim="ssoAdminGroup"
+                  class="mg-bottom"
+                  :disabled="
+                    loading.getConfiguration || loading.configureModule
+                  "
+                >
+                </cv-text-input>
+                <p class="field-help">{{ $t("settings.sso_admin_group_help") }}</p>
                 <p class="field-help">{{ $t("settings.sso_group_help") }}</p>
               </template>
               <cv-toggle
@@ -553,6 +576,9 @@ export default {
       isSsoEnabled: false,
       ssoIdpModule: "",
       ssoDomain: "",
+      ssoAdminGroup: "",
+      idpModules: [],
+      allDomains: [],
       isSmarthostAvailable: false,
       sshPort: 0,
       setupMode: "",
@@ -578,6 +604,7 @@ export default {
         getConfiguration: false,
         configureModule: false,
         listUserDomains: false,
+        listIdpModules: false,
         getRecoveryCredentials: false,
         resetRecoveryPassword: false,
       },
@@ -590,6 +617,7 @@ export default {
         lets_encrypt: "",
         http2https: "",
         listUserDomains: "",
+        listIdpModules: "",
         ad_domain: "",
         ad_user_group: "",
         ad_admin_group: "",
@@ -671,6 +699,7 @@ export default {
       this.isSsoEnabled = config.sso_enabled;
       this.ssoIdpModule = config.sso_idp_module;
       this.ssoDomain = config.sso_domain;
+      this.ssoAdminGroup = config.sso_admin_group;
       this.isSmarthostAvailable = config.smarthost_available;
       this.sshPort = config.ssh_port;
       this.setupModeState = config.setup_mode;
@@ -687,6 +716,7 @@ export default {
       this.loading.getConfiguration = false;
       if (config.setup_mode !== "manual" && !this.adDomains.length) {
         this.listUserDomains();
+        this.listIdpModules();
       }
       this.focusElement("host");
     },
@@ -725,7 +755,7 @@ export default {
         isValidationOk = false;
       }
       const validateSso = this.setupMode === "managed" && this.isSsoEnabled;
-      if (validateSso && !/^[a-zA-Z0-9_.-]+$/.test(this.ssoIdpModule)) {
+      if (validateSso && !this.ssoIdpModule) {
         this.error.sso_idp_module = "common.required";
         if (isValidationOk) {
           this.focusElement("sso_idp_module");
@@ -832,6 +862,7 @@ export default {
             sso_enabled: this.setupMode === "managed" && this.isSsoEnabled,
             sso_idp_module: this.ssoIdpModule,
             sso_domain: this.ssoDomain,
+            sso_admin_group: this.ssoAdminGroup,
             sso_auto_registration:
               this.setupMode === "managed" && this.isSsoAutoRegistrationEnabled,
             ad_enabled: this.setupMode === "managed" && this.isAdEnabled,
@@ -907,7 +938,62 @@ export default {
       this.error.listUserDomains = this.$t("error.generic_error");
       this.loading.listUserDomains = false;
     },
+    async listIdpModules() {
+      this.loading.listIdpModules = true;
+      this.error.listIdpModules = "";
+      const taskAction = "list-installed-modules";
+      const eventId = this.getUuid();
+
+      this.core.$root.$once(
+        `${taskAction}-aborted-${eventId}`,
+        this.listIdpModulesAborted
+      );
+      this.core.$root.$once(
+        `${taskAction}-completed-${eventId}`,
+        this.listIdpModulesCompleted
+      );
+
+      const res = await to(
+        this.createClusterTaskForApp({
+          action: taskAction,
+          extra: {
+            title: this.$t("action." + taskAction),
+            isNotificationHidden: true,
+            eventId,
+          },
+        })
+      );
+      const err = res[0];
+      if (err) {
+        console.error(`error creating task ${taskAction}`, err);
+        this.error.listIdpModules = this.getErrorMessage(err);
+        this.loading.listIdpModules = false;
+      }
+    },
+    listIdpModulesAborted(taskResult, taskContext) {
+      console.error(`${taskContext.action} aborted`, taskResult);
+      this.error.listIdpModules = this.$t("error.generic_error");
+      this.loading.listIdpModules = false;
+    },
+    listIdpModulesCompleted(taskContext, taskResult) {
+      const output = taskResult.output || {};
+      // The image name is the registry path without the tag.
+      this.idpModules = Object.keys(output)
+        .filter((image) => /(^|\/)idp-reworked$/.test(image))
+        .flatMap((image) => output[image])
+        .map((module) => ({
+          name: module.id,
+          label: module.ui_name ? `${module.ui_name} (${module.id})` : module.id,
+          value: module.id,
+        }));
+      this.loading.listIdpModules = false;
+    },
     listUserDomainsCompleted(taskContext, taskResult) {
+      this.allDomains = taskResult.output.domains.map((domain) => ({
+        name: domain.name,
+        label: domain.name,
+        value: domain.name,
+      }));
       this.adDomains = taskResult.output.domains
         .filter((domain) => domain.schema === "ad")
         .map((domain) => ({

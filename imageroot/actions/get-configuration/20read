@@ -76,6 +76,7 @@ configuration["sso_enabled"] = setup_mode == "managed" and parse_bool(
 )
 configuration["sso_idp_module"] = sso_environment.get("GITEA_SSO_IDP_MODULE", "").strip()
 configuration["sso_domain"] = sso_environment.get("GITEA_SSO_DOMAIN", "").strip()
+configuration["sso_admin_group"] = sso_environment.get("GITEA_SSO_ADMIN_GROUP", "").strip()
 configuration["sso_auto_registration"] = setup_mode == "managed" and parse_bool(
     setup_environment.get("GITEA_SSO_AUTO_REGISTRATION", "false")
 )

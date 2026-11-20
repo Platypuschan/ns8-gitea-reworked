@@ -37,6 +37,9 @@
     "sso_enabled": "Anmeldung über einen NS8-IdP (idp-reworked)",
     "sso_idp_module": "IdP-Modulinstanz",
     "sso_domain": "Benutzerdomäne des IdP-Realms",
+    "sso_idp_module_placeholder": "IdP-Instanz auswählen",
+    "sso_admin_group": "LDAP-Gruppe der Gitea-Administratoren",
+    "sso_admin_group_help": "Mitglieder dieser LDAP-Gruppe werden beim Login über den IdP Gitea-Administratoren. Leer lassen, um Administratoren in Gitea zu verwalten. Benötigt einen IdP mit Gruppen-Claim.",
     "sso_group_help": "Gitea registriert seinen OIDC-Client selbst beim IdP und pflegt die Anmeldequelle ns8-sso. Anmelden kann sich niemand, bis auf der Zugriffsseite des IdP eine LDAP-Gruppe gewählt ist.",
     "smarthost_unavailable_title": "Kein NS8-Smarthost eingerichtet",
     "smarthost_unavailable": "Der E-Mail-Versand von Gitea bleibt deaktiviert, bis in den NS8-Einstellungen ein Smarthost aktiviert ist.",
@@ -126,6 +129,7 @@
     "configure-module": "Modul konfigurieren",
     "get-configuration": "Konfiguration abrufen",
     "list-user-domains": "Benutzerdomänen abrufen",
+    "list-installed-modules": "Installierte Module abrufen",
     "get-recovery-credentials": "Recovery-Zugangsdaten abrufen",
     "reset-recovery-password": "Recovery-Passwort neu erzeugen",
     "get-name": "Name abrufen"

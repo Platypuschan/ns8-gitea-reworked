@@ -427,6 +427,11 @@ class SsoRegistrationTests(unittest.TestCase):
             )
         data = calls[0]["data"]
         self.assertIs(data["access_required"], True)
+        self.assertEqual(data["groups_claim"], [])
+        config = gitea_auth.SsoConfig(True, "idp-reworked1", "ad.example.test", "", "gitea-admin")
+        with mock.patch.dict(sys.modules, {"agent": agent_module, "agent.tasks": tasks}):
+            gitea_auth.register_sso_client(config, "git.example.test")
+        self.assertEqual(calls[1]["data"]["groups_claim"], ["gitea-admin"])
         self.assertEqual(
             data["redirect_uris"],
             ["https://git.example.test/user/oauth2/ns8-sso/callback"],
@@ -435,8 +440,8 @@ class SsoRegistrationTests(unittest.TestCase):
 
 
 class SsoReconcileTests(unittest.TestCase):
-    def reconcile(self, *, enabled=True, applied="", sources=None, run_side_effect=None):
-        config = gitea_auth.SsoConfig(
+    def reconcile(self, *, enabled=True, applied="", sources=None, run_side_effect=None, config=None):
+        config = config or gitea_auth.SsoConfig(
             enabled=enabled, idp_module="idp-reworked1", domain="ad.example.test", applied=applied
         )
         patches = [
@@ -452,6 +457,10 @@ class SsoReconcileTests(unittest.TestCase):
         self.addCleanup(mock.patch.stopall)
         gitea_auth.reconcile_sso()
         return dict(zip(["read", "list", "host", "register", "run", "restart", "write"], mocks))
+
+    def reconcile_with(self, config, *, sources):
+        mock.patch.stopall()
+        return self.reconcile(config=config, sources=sources)
 
     @staticmethod
     def source(type_="OAuth2", enabled="true"):
@@ -476,6 +485,24 @@ class SsoReconcileTests(unittest.TestCase):
         second = self.reconcile(applied=fingerprint, sources=[[self.source()]])
         second["run"].assert_not_called()
         second["restart"].assert_not_called()
+
+    def test_admin_group_sets_claim_flags_and_changes_the_fingerprint(self):
+        config = gitea_auth.SsoConfig(True, "idp-reworked1", "ad.example.test", "", "gitea-admin")
+        with mock.patch.object(gitea_auth, "read_sso_config", return_value=config):
+            m = self.reconcile_with(config, sources=[[], [self.source()]])
+        command = m["run"].call_args.args[0]
+        i = command.index("--group-claim-name")
+        self.assertEqual(command[i:i + 4], ["--group-claim-name", "groups", "--admin-group", "gitea-admin"])
+        plain = self.reconcile(sources=[[], [self.source()]])
+        self.assertNotEqual(m["write"].call_args.args[1], plain["write"].call_args.args[1])
+        data = m["register"].call_args
+        self.assertEqual(data.args[0].admin_group, "gitea-admin")
+
+    def test_removed_admin_group_clears_the_flags_on_an_existing_source(self):
+        m = self.reconcile(applied="old", sources=[[self.source()], [self.source()]])
+        command = m["run"].call_args.args[0]
+        i = command.index("--group-claim-name")
+        self.assertEqual(command[i:i + 4], ["--group-claim-name", "", "--admin-group", ""])
 
     def test_changed_secret_updates_the_source_and_restarts(self):
         m = self.reconcile(applied="old", sources=[[self.source()], [self.source()]])
