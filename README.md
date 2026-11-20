@@ -14,6 +14,7 @@ The module provides:
 - a one-time choice between Gitea's web installer and NS8-managed setup
 - private-by-default access settings in managed setup mode
 - optional, managed Active Directory login through an NS8 account domain
+- optional single sign-on through an `idp-reworked` instance
 
 ## Runtime versions
 
@@ -84,7 +85,8 @@ Gitea's web installer, initializes the database, and creates a local
 The managed defaults are:
 
 - anonymous users must sign in
-- self-registration is disabled
+- self-registration is disabled (accounts of SSO users can still be created
+  automatically, see [Single sign-on](#single-sign-on-with-idp-reworked))
 - newly created repositories default to private
 
 Active Directory login remains optional in this mode. If it is disabled,
@@ -113,6 +115,73 @@ and backups; do not replace the module-provided database settings.
 Gitea owns user creation, authentication sources, mail, and application
 security settings in this mode. The module does not create the recovery administrator
 and does not manage an Active Directory source.
+
+## Single sign-on with idp-reworked
+
+In managed setup mode Gitea can sign users in through an
+[`idp-reworked`](https://github.com/Platypuschan/ns8-idp-reworked) instance of
+the same cluster (OpenID Connect). The Settings page has a **Single sign-on**
+section; the equivalent API call is:
+
+```bash
+api-cli run module/gitea-reworked1/configure-module --data - <<'EOF'
+{
+  "host": "gitea.example.test",
+  "http2https": true,
+  "lets_encrypt": true,
+  "setup_mode": "managed",
+  "sso_enabled": true,
+  "sso_idp_module": "idp-reworked1",
+  "sso_domain": "ad.example.test",
+  "sso_auto_registration": true,
+  "sso_admin_group": "gitea-admin"
+}
+EOF
+```
+
+What the module does:
+
+- binds the user domain to itself and registers its OIDC client at the IdP
+  (the client ID is the module ID); the IdP keeps the client secret
+- creates and maintains the Gitea authentication source `ns8-sso`
+  (callback `https://<host>/user/oauth2/ns8-sso/callback`) and restarts Gitea
+  when the client secret changes
+- keeps the domain bound when SSO is switched off. The IdP deletes the client
+  of a module that loses the domain, together with its access group; if the
+  source cannot be deleted because accounts use it, the module blocks it
+  with a required claim no token carries
+- needs the authorization `idp-reworked@any:clientadm`, granted from the
+  image label. The `@any` selector exists since NS8 core 0.0.21, so the
+  minimum core version of this module is unchanged
+
+Access control:
+
+- **The registered client requires an access group.** Nobody can sign in
+  until an administrator selects an LDAP group for the client on the **Access**
+  page of the IdP. Without it the IdP refuses every login (fail closed). The
+  group is chosen on the IdP, not in Gitea.
+- `sso_auto_registration` lets Gitea create an account on the first SSO login
+  (user name from `preferred_username`). Password self-registration stays
+  disabled.
+- Accounts are linked by user name or e-mail (`ACCOUNT_LINKING=auto`), so an
+  existing Gitea account, for example one created through the AD source, is
+  linked at the first SSO login without a password prompt. This trusts the
+  IdP's user names and e-mail addresses: do not point the module at an IdP
+  that lets users choose them.
+- `sso_admin_group` (optional) names an LDAP group. The IdP puts the current
+  memberships in this group into the `groups` claim of the tokens, and Gitea
+  makes members administrators at each login and removes the right at the
+  next login after membership ends. Needs `idp-reworked` 0.1.2 or newer;
+  older IdPs ignore the request.
+
+Limits:
+
+- Removing a user from the access group stops new SSO logins. It does not end
+  existing Gitea sessions, personal access tokens or SSH keys; they stay valid
+  until an administrator revokes them or disables the account in Gitea.
+- Only one IdP instance is supported. Switching to another IdP instance with
+  the same user domain leaves the client in the old IdP; remove it there.
+- The IdP instance and domain are chosen from lists in the Settings page.
 
 ## Active Directory login
 
